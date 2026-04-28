@@ -1,1 +1,109 @@
 @import '../assets/base.css';
+
+.add-task {
+    width: 277px;
+    text-align: center;
+}
+
+.add-task__form {
+    display: flex;
+    flex-direction: column;
+    gap: 13px;
+}
+
+.add-task__urgency-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	text-align: left;
+}
+
+.add-task__urgency-row h2 {
+	flex: 0 0 auto;
+	margin: 0;
+}
+
+.add-task__field input {
+	width: 100%;
+	border: 1px solid black;
+	border-radius: 15px;
+	background: var(--light-orange);
+	padding: 10px;
+}
+
+.add-task__field textarea {
+	width: 100%;
+	border: 1px solid black;
+	border-radius: 15px;
+	background: var(--light-orange);
+	padding: 10px;
+	resize: none;
+}
+
+#title {
+	height: 39px;
+}
+
+#context {
+	height: 109px;
+    overflow-y: scroll;
+}
+
+.urgency-selector {
+	position: relative;
+	display: flex;
+	align-items: center;
+	flex: 1;
+	background: var(--light-orange);
+	border: 1px solid black;
+	border-radius: 15px;
+	overflow: hidden;
+	cursor: pointer;
+}
+
+.urgency-selector__indicator {
+	position: absolute;
+	left: -1px;
+	width: calc(33.333% + 1px);
+	height: calc(100% + 2px);
+	background: var(--blue);
+	border: 1px solid black;
+    border-radius: 15px;
+	transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+	pointer-events: none;
+}
+
+.urgency-selector__btn {
+	flex: 1;
+	border: none;
+	background: transparent;
+	height: 39px;
+	cursor: pointer;
+	position: relative;
+	z-index: 1;
+}
+
+.add-task__submit {
+    width: 90px;
+    height: 34px;
+    margin: 0 auto;
+	border: 1px solid black;
+	border-radius: 15px;
+	background: var(--light-orange);
+	color: black;
+	cursor: pointer;
+	transition: background-color 0.2s ease;
+}
+
+.add-task__submit--ready {
+	background: var(--orange);
+}
+
+.add-task__submit:disabled,
+.urgency-selector__btn:disabled,
+.add-task__field input:disabled,
+.add-task__field textarea:disabled {
+	opacity: 0.7;
+	cursor: not-allowed;
+}
