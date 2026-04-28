@@ -1,8 +1,12 @@
+@font-face {
+  font-family: 'Gidugu';
+  src: url('../../../../resources/fonts/Gidugu-Regular.ttf') format('truetype');
+}
+
 :root {
   --bg-cream: #FFF0CB;
   --purple: #BB89C7;
   --pink: #FFA1CA;
-  
 }
 
 *,
@@ -13,29 +17,13 @@
   font-weight: normal;
 }
 
-ul {
-  list-style: none;
-}
-
-body {
-  min-height: 100vh;
-  color: var(--color-text);
-  background: var(--color-background);
-  line-height: 1.6;
-  font-family:
-    Inter,
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    Roboto,
-    Oxygen,
-    Ubuntu,
-    Cantarell,
-    'Fira Sans',
-    'Droid Sans',
-    'Helvetica Neue',
-    sans-serif;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: "Gidugu", sans-serif;
+  font-weight: 400;
+  font-style: normal;
 }

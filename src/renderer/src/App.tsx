@@ -5,7 +5,7 @@ import AddTask from './components/AddTask'
 import List from './components/List'
 
 function App(): React.JSX.Element {
-  const [activeView, setActiveView] = useState<ActiveView>('calendar')
+  const [activeView, setActiveView] = useState<ActiveView>('addTask')
 
   const renderView = (): React.JSX.Element => {
     if (activeView === 'calendar') return <Calendar />

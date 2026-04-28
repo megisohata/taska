@@ -9,4 +9,7 @@ body,
 
 .app-main {
   background: var(--bg-cream);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
