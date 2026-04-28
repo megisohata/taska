@@ -98,7 +98,6 @@ function createWindow(): void {
     width: 350,
     height: 450,
     alwaysOnTop: true,
-    frame: false,
     resizable: false,
     show: false,
     autoHideMenuBar: true,
