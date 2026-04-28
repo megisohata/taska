@@ -1,8 +1,14 @@
-import { contextBridge } from 'electron'
+import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 
 // Custom APIs for renderer
-const api = {}
+const api = {
+  getTasks: () => ipcRenderer.invoke('tasks:getAll') as Promise<unknown[]>,
+  addTask: (data: { title: string; context?: string; urgency: 'low' | 'med' | 'high' }) =>
+    ipcRenderer.invoke('tasks:add', data) as Promise<unknown>,
+  completeTask: (id: string) => ipcRenderer.invoke('tasks:complete', id) as Promise<unknown>,
+  uncompleteTask: (id: string) => ipcRenderer.invoke('tasks:uncomplete', id) as Promise<unknown>
+}
 
 // Use `contextBridge` APIs to expose Electron APIs to
 // renderer only if context isolation is enabled, otherwise

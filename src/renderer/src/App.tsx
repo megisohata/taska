@@ -1,34 +1,38 @@
-import Versions from './components/Versions'
-import electronLogo from './assets/electron.svg'
+import { useState } from 'react'
+
+type ActiveView = 'calendar' | 'addTask' | 'list'
 
 function App(): React.JSX.Element {
-  const ipcHandle = (): void => window.electron.ipcRenderer.send('ping')
+  const [activeView, setActiveView] = useState<ActiveView>('addTask')
+
+  const renderView = (): React.JSX.Element => {
+    if (activeView === 'calendar') {
+      return <section>Calendar View</section>
+    }
+
+    if (activeView === 'addTask') {
+      return <section>Add Task View</section>
+    }
+
+    return <section>List View</section>
+  }
 
   return (
-    <>
-      <img alt="logo" className="logo" src={electronLogo} />
-      <div className="creator">Powered by electron-vite</div>
-      <div className="text">
-        Build an Electron app with <span className="react">React</span>
-        &nbsp;and <span className="ts">TypeScript</span>
-      </div>
-      <p className="tip">
-        Please try pressing <code>F12</code> to open the devTool
-      </p>
-      <div className="actions">
-        <div className="action">
-          <a href="https://electron-vite.org/" target="_blank" rel="noreferrer">
-            Documentation
-          </a>
-        </div>
-        <div className="action">
-          <a target="_blank" rel="noreferrer" onClick={ipcHandle}>
-            Send IPC
-          </a>
-        </div>
-      </div>
-      <Versions></Versions>
-    </>
+    <main className="app-main">
+      <nav>
+        <button type="button" onClick={() => setActiveView('calendar')}>
+          Calendar
+        </button>
+        <button type="button" onClick={() => setActiveView('addTask')}>
+          Add Task
+        </button>
+        <button type="button" onClick={() => setActiveView('list')}>
+          List
+        </button>
+      </nav>
+
+      {renderView()}
+    </main>
   )
 }
 
