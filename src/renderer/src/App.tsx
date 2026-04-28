@@ -1,37 +1,22 @@
 import { useState } from 'react'
-
-type ActiveView = 'calendar' | 'addTask' | 'list'
+import BottomNav, { type ActiveView } from './components/BottomNav'
+import Calendar from './components/Calendar'
+import AddTask from './components/AddTask'
+import List from './components/List'
 
 function App(): React.JSX.Element {
-  const [activeView, setActiveView] = useState<ActiveView>('addTask')
+  const [activeView, setActiveView] = useState<ActiveView>('calendar')
 
   const renderView = (): React.JSX.Element => {
-    if (activeView === 'calendar') {
-      return <section>Calendar View</section>
-    }
-
-    if (activeView === 'addTask') {
-      return <section>Add Task View</section>
-    }
-
-    return <section>List View</section>
+    if (activeView === 'calendar') return <Calendar />
+    if (activeView === 'addTask') return <AddTask />
+    return <List />
   }
 
   return (
     <main className="app-main">
-      <nav>
-        <button type="button" onClick={() => setActiveView('calendar')}>
-          Calendar
-        </button>
-        <button type="button" onClick={() => setActiveView('addTask')}>
-          Add Task
-        </button>
-        <button type="button" onClick={() => setActiveView('list')}>
-          List
-        </button>
-      </nav>
-
       {renderView()}
+      <BottomNav activeView={activeView} onChangeView={setActiveView} />
     </main>
   )
 }
