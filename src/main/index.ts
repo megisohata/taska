@@ -4,6 +4,94 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { initDatabase } from './db'
 
+type StubUrgency = 'low' | 'med' | 'high'
+
+type StubTask = {
+  id: string
+  title: string
+  context: string | null
+  urgency: StubUrgency
+  estimatedMinutes: number
+  scheduledStart: string | null
+  scheduledEnd: string | null
+  googleCalendarEventId: string | null
+  completed: boolean
+  completedAt: string | null
+  manualOrder: number | null
+  createdAt: string
+}
+
+type StubNewTask = {
+  title: string
+  context?: string
+  urgency: StubUrgency
+}
+
+const stubTasks: StubTask[] = [
+  {
+    id: 'stub-1',
+    title: 'Draft today plan',
+    context: 'Focus block',
+    urgency: 'med',
+    estimatedMinutes: 30,
+    scheduledStart: null,
+    scheduledEnd: null,
+    googleCalendarEventId: null,
+    completed: false,
+    completedAt: null,
+    manualOrder: 0,
+    createdAt: new Date().toISOString()
+  }
+]
+
+function registerStubTaskIpcHandlers(): void {
+  ipcMain.handle('tasks:getAll', () => {
+    return stubTasks
+  })
+
+  ipcMain.handle('tasks:add', (_, data: StubNewTask) => {
+    const task: StubTask = {
+      id: `stub-${Date.now()}`,
+      title: data.title,
+      context: data.context ?? null,
+      urgency: data.urgency,
+      estimatedMinutes: 30,
+      scheduledStart: null,
+      scheduledEnd: null,
+      googleCalendarEventId: null,
+      completed: false,
+      completedAt: null,
+      manualOrder: stubTasks.length,
+      createdAt: new Date().toISOString()
+    }
+
+    stubTasks.unshift(task)
+    return task
+  })
+
+  ipcMain.handle('tasks:complete', (_, id: string) => {
+    const task = stubTasks.find((item) => item.id === id)
+    if (!task) {
+      throw new Error(`Task with id ${id} not found`)
+    }
+
+    task.completed = true
+    task.completedAt = new Date().toISOString()
+    return task
+  })
+
+  ipcMain.handle('tasks:uncomplete', (_, id: string) => {
+    const task = stubTasks.find((item) => item.id === id)
+    if (!task) {
+      throw new Error(`Task with id ${id} not found`)
+    }
+
+    task.completed = false
+    task.completedAt = null
+    return task
+  })
+}
+
 function createWindow(): void {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
@@ -44,6 +132,7 @@ function createWindow(): void {
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
   initDatabase(app.getPath('userData'))
+  registerStubTaskIpcHandlers()
 
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
