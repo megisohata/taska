@@ -31,6 +31,7 @@ function AddTask(): React.JSX.Element {
         context: context.trim() || undefined,
         urgency
       })
+      window.dispatchEvent(new Event('tasks:changed'))
       // Reset form on success
       setTitle('')
       setContext('')

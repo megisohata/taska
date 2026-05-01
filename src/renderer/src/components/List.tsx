@@ -300,6 +300,7 @@ function List(): React.JSX.Element {
             : task
         )
       )
+      window.dispatchEvent(new Event('tasks:changed'))
     } catch {
       return
     }
