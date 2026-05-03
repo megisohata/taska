@@ -1,0 +1,41 @@
+@import '../assets/base.css';
+
+.bottom-nav {
+  position: absolute;
+  left: 33px;
+  top: 394px;
+  display: flex;
+  align-items: center;
+  background: var(--pink);
+  border-radius: 9999px;
+  border: 1px solid black;
+  width: 277px;
+  height: 45px;
+  overflow: hidden;
+  z-index: 20;
+}
+
+.bottom-nav__indicator {
+  position: absolute;
+  left: -1px;
+  width: calc(33.333% + 1px);
+  height: calc(100% + 2px);
+  background: var(--purple);
+  border-radius: 9999px;
+  border: 1px solid black;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  pointer-events: none;
+}
+
+.bottom-nav__btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 10px 0;
+  z-index: 1;
+  color: black;
+}

@@ -1,5 +1,21 @@
+@font-face {
+  font-family: 'Gidugu';
+  src: url('../../../../resources/fonts/Gidugu-Regular.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('../../../../resources/fonts/Inter-VariableFont_opsz,wght.ttf') format('truetype');
+}
+
 :root {
   --bg-cream: #FFF0CB;
+  --purple: #BB89C7;
+  --pink: #FFA1CA;
+  --light-orange: #FFD98A;
+  --blue: #8DEAFF;
+  --orange: #FFB23E;
+  --green: #C5EF00;
 }
 
 *,
@@ -10,29 +26,30 @@
   font-weight: normal;
 }
 
-ul {
-  list-style: none;
+body,
+input,
+textarea,
+button,
+select {
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
 }
 
-body {
-  min-height: 100vh;
-  color: var(--color-text);
-  background: var(--color-background);
-  line-height: 1.6;
-  font-family:
-    Inter,
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    Roboto,
-    Oxygen,
-    Ubuntu,
-    Cantarell,
-    'Fira Sans',
-    'Droid Sans',
-    'Helvetica Neue',
-    sans-serif;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: "Gidugu", sans-serif;
+  font-weight: 400;
+  font-style: normal;
+}
+
+h1 {
+  font-size: 36px;
+}
+
+h2 {
+  font-size: 24px;
 }

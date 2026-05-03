@@ -1,0 +1,146 @@
+@import '../assets/base.css';
+
+.add-task {
+  position: absolute;
+  inset: 0;
+  width: 350px;
+  height: 450px;
+  overflow: hidden;
+  font-family: 'Inter', sans-serif;
+  text-align: center;
+}
+
+.add-task__form {
+  display: contents;
+}
+
+.add-task h1 {
+  position: absolute;
+  top: 65px;
+  left: 0;
+  width: 350px;
+  margin: 0;
+  font-family: 'Gidugu', sans-serif;
+  font-size: 36px;
+  font-weight: 400;
+  line-height: 29px;
+}
+
+.add-task__urgency-row {
+  position: absolute;
+  top: 291px;
+  left: 42px;
+  width: 266px;
+  height: 39px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  text-align: left;
+}
+
+.add-task__urgency-row h2 {
+  flex: 0 0 50px;
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 15px;
+}
+
+.add-task__field input {
+  position: absolute;
+  top: 117px;
+  left: 33px;
+  width: 277px;
+  border: 1px solid black;
+  border-radius: 15px;
+  background: var(--light-orange);
+  font-family: 'Inter', sans-serif;
+  padding: 0 9px;
+}
+
+.add-task__field textarea {
+  position: absolute;
+  top: 169px;
+  left: 33px;
+  width: 277px;
+  border: 1px solid black;
+  border-radius: 15px;
+  background: var(--light-orange);
+  font-family: 'Inter', sans-serif;
+  padding: 10px 9px;
+  resize: none;
+}
+
+#title {
+  height: 39px;
+}
+
+#context {
+  height: 109px;
+  overflow: hidden;
+}
+
+.urgency-selector {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 0 0 201px;
+  height: 39px;
+  background: var(--light-orange);
+  border: 1px solid black;
+  border-radius: 15px;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.urgency-selector__indicator {
+  position: absolute;
+  left: -1px;
+  width: calc(33.333% + 1px);
+  height: calc(100% + 2px);
+  background: var(--blue);
+  border: 1px solid black;
+  border-radius: 15px;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  pointer-events: none;
+}
+
+.urgency-selector__btn {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-family: 'Inter', sans-serif;
+  height: 39px;
+  cursor: pointer;
+  position: relative;
+  z-index: 1;
+}
+
+.add-task__submit {
+  position: absolute;
+  top: 342px;
+  left: 126px;
+  width: 90px;
+  height: 39px;
+  border: 1px solid black;
+  border-radius: 15px;
+  background: var(--light-orange);
+  color: black;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.add-task__submit--ready {
+  background: var(--orange);
+}
+
+.add-task__submit:disabled,
+.urgency-selector__btn:disabled,
+.add-task__field input:disabled,
+.add-task__field textarea:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}

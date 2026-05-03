@@ -2,12 +2,24 @@
 
 html,
 body,
-#root,
-.app-main {
+#root {
+  height: 100vh;
   min-height: 100vh;
+  overflow: hidden;
+}
+
+body,
+#root {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
 }
 
 .app-main {
+  position: relative;
+  width: 350px;
+  height: 450px;
+  min-height: 450px;
   background: var(--bg-cream);
-  padding: 12px;
+  overflow: hidden;
 }

@@ -97,6 +97,7 @@ function createWindow(): void {
   const mainWindow = new BrowserWindow({
     width: 350,
     height: 450,
+    useContentSize: true,
     alwaysOnTop: true,
     resizable: false,
     show: false,

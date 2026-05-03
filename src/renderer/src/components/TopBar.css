@@ -1,0 +1,102 @@
+@import '../assets/base.css';
+
+.top-bar {
+  position: absolute;
+  top: 7px;
+  left: 14.5px;
+  width: 321px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  z-index: 10;
+}
+
+.top-bar--settings-only {
+  left: 320px;
+  width: 24px;
+  justify-content: flex-end;
+}
+
+.top-bar__progress {
+  flex: 0 0 293px;
+  width: 293px;
+  margin-top: 2px;
+}
+
+.top-bar__progress-track {
+  --progress: 0%;
+  height: 15px;
+  width: 100%;
+  position: relative;
+  border: 1px solid #1a1a1a;
+  border-radius: 999px;
+  background: #ffd98a;
+  box-shadow: 4px 4px 0 #1a1a1a;
+  overflow: hidden;
+}
+
+.top-bar__progress-track::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 7.5px;
+  height: 100%;
+  background: #ffb23e;
+  border-radius: 999px 0 0 999px;
+  pointer-events: none;
+}
+
+.top-bar__progress-fill {
+  position: relative;
+  height: 100%;
+  width: max(15px, var(--progress));
+  background: linear-gradient(
+    90deg,
+    #ffb23e 0%,
+    #ffa1ca 25%,
+    #bb89c7 50%,
+    #8deaff 75%,
+    #c5ef00 100%
+  );
+  background-size: 293px 100%;
+  background-repeat: no-repeat;
+  background-position: left top;
+  transition: width 260ms ease;
+  border-radius: 0 7.5px 7.5px 0;
+}
+
+.top-bar__progress-cap {
+  position: absolute;
+  top: 50%;
+  left: clamp(7.5px, calc(var(--progress) - 7.5px), calc(100% - 7.5px));
+  width: 7.5px;
+  height: 15px;
+  box-sizing: border-box;
+  border: 1px solid #1a1a1a;
+  border-left: none;
+  border-radius: 0 7.5px 7.5px 0;
+  background: transparent;
+  transform: translateY(-50%);
+  pointer-events: none;
+  transition: left 260ms ease;
+}
+
+.top-bar__settings {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #1a1a1a;
+  cursor: pointer;
+}
+
+.top-bar__settings:active {
+  transform: none;
+}
