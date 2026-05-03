@@ -11,7 +11,24 @@ type Task = {
   id: string
   title: string
   estimatedMinutes: number
+  scheduledStart: string | null
   completed: boolean
+}
+
+function mapTask(task: {
+  id: string
+  title: string
+  estimatedMinutes: number
+  scheduledStart: string | null
+  completed: boolean
+}): Task {
+  return {
+    id: task.id,
+    title: task.title,
+    estimatedMinutes: task.estimatedMinutes,
+    scheduledStart: task.scheduledStart,
+    completed: task.completed
+  }
 }
 
 const FACES = [
@@ -218,23 +235,22 @@ function ProgressArc({ percent }: { percent: number }): React.JSX.Element {
 
 function List(): React.JSX.Element {
   const [tasks, setTasks] = useState<Task[]>([])
+  const [rescheduling, setRescheduling] = useState(false)
+
+  async function loadTasks(): Promise<void> {
+    const data = await window.api.getTasks()
+    setTasks(data.map(mapTask))
+  }
 
   useEffect(() => {
     let cancelled = false
 
-    async function loadTasks(): Promise<void> {
+    async function loadInitialTasks(): Promise<void> {
       try {
         const data = await window.api.getTasks()
 
         if (!cancelled) {
-          setTasks(
-            data.map((task) => ({
-              id: task.id,
-              title: task.title,
-              estimatedMinutes: task.estimatedMinutes,
-              completed: task.completed
-            }))
-          )
+          setTasks(data.map(mapTask))
         }
       } catch {
         if (!cancelled) {
@@ -243,10 +259,16 @@ function List(): React.JSX.Element {
       }
     }
 
-    void loadTasks()
+    const onTasksChanged = (): void => {
+      void loadInitialTasks()
+    }
+
+    void loadInitialTasks()
+    window.addEventListener('tasks:changed', onTasksChanged)
 
     return () => {
       cancelled = true
+      window.removeEventListener('tasks:changed', onTasksChanged)
     }
   }, [])
 
@@ -288,22 +310,74 @@ function List(): React.JSX.Element {
         ? await window.api.uncompleteTask(id)
         : await window.api.completeTask(id)
 
-      setTasks((prev) =>
-        prev.map((task) =>
-          task.id === id
-            ? {
-                ...task,
-                title: updated.title,
-                estimatedMinutes: updated.estimatedMinutes,
-                completed: updated.completed
-              }
-            : task
-        )
-      )
+      setTasks((prev) => prev.map((task) => (task.id === id ? mapTask(updated) : task)))
       window.dispatchEvent(new Event('tasks:changed'))
+      await loadTasks()
     } catch {
       return
     }
+  }
+
+  const scheduledTasks = tasks.filter((task) => task.scheduledStart !== null)
+  const unscheduledTasks = tasks.filter((task) => task.scheduledStart === null)
+  const unfinishedTasks = tasks.filter((task) => !task.completed)
+
+  async function handleRescheduleTomorrow(): Promise<void> {
+    setRescheduling(true)
+
+    try {
+      const data = await window.api.rescheduleTomorrow()
+      setTasks(data.map(mapTask))
+      window.dispatchEvent(new Event('tasks:changed'))
+    } catch {
+      return
+    } finally {
+      setRescheduling(false)
+    }
+  }
+
+  function renderTaskRow(task: Task, index: number): React.JSX.Element {
+    return (
+      <li
+        key={task.id}
+        className={`task-row ${task.completed ? 'task-row--done' : ''}`}
+        draggable
+        onDragStart={() => handleDragStart(index)}
+        onDragEnter={() => handleDragEnter(index)}
+        onDragEnd={handleDragEnd}
+        onDragOver={(e) => e.preventDefault()}
+      >
+        <img src={hamburger} alt="" className="task-row__handle" draggable={false} />
+        <span className="task-row__title">
+          <span className="task-row__title-text">{task.title}</span>
+        </span>
+        <span className="task-row__time">{task.estimatedMinutes} min</span>
+        <button
+          className="task-row__checkbox"
+          onClick={() => void toggleTask(task.id)}
+          aria-label={task.completed ? 'Mark incomplete' : 'Mark complete'}
+        >
+          {task.completed ? (
+            <svg width="18" height="18" viewBox="0 0 18 18">
+              <circle cx="9" cy="9" r="8" fill="#C5EF00" stroke="#000000" strokeWidth="1.5" />
+              <path
+                d="M5 9.5 L7.5 12 L13 6.5"
+                stroke="#000000"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                fill="none"
+                className="checkmark-path"
+              />
+            </svg>
+          ) : (
+            <svg width="18" height="18" viewBox="0 0 18 18">
+              <circle cx="9" cy="9" r="8" fill="#FFF0CB" stroke="#000000" strokeWidth="1.5" />
+            </svg>
+          )}
+        </button>
+      </li>
+    )
   }
 
   return (
@@ -320,47 +394,23 @@ function List(): React.JSX.Element {
 
       <ul className="list-view__tasks">
         {tasks.length === 0 ? <li className="list-view__empty">No tasks yet!</li> : null}
-        {tasks.map((task, index) => (
-          <li
-            key={task.id}
-            className={`task-row ${task.completed ? 'task-row--done' : ''}`}
-            draggable
-            onDragStart={() => handleDragStart(index)}
-            onDragEnter={() => handleDragEnter(index)}
-            onDragEnd={handleDragEnd}
-            onDragOver={(e) => e.preventDefault()}
-          >
-            <img src={hamburger} alt="" className="task-row__handle" draggable={false} />
-            <span className="task-row__title">
-              <span className="task-row__title-text">{task.title}</span>
-            </span>
-            <span className="task-row__time">{task.estimatedMinutes} min</span>
+        {unfinishedTasks.length > 0 ? (
+          <li className="list-view__action-row">
             <button
-              className="task-row__checkbox"
-              onClick={() => void toggleTask(task.id)}
-              aria-label={task.completed ? 'Mark incomplete' : 'Mark complete'}
+              type="button"
+              className="list-view__tomorrow"
+              disabled={rescheduling}
+              onClick={() => void handleRescheduleTomorrow()}
             >
-              {task.completed ? (
-                <svg width="18" height="18" viewBox="0 0 18 18">
-                  <circle cx="9" cy="9" r="8" fill="#C5EF00" stroke="#000000" strokeWidth="1.5" />
-                  <path
-                    d="M5 9.5 L7.5 12 L13 6.5"
-                    stroke="#000000"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    fill="none"
-                    className="checkmark-path"
-                  />
-                </svg>
-              ) : (
-                <svg width="18" height="18" viewBox="0 0 18 18">
-                  <circle cx="9" cy="9" r="8" fill="#FFF0CB" stroke="#000000" strokeWidth="1.5" />
-                </svg>
-              )}
+              {rescheduling ? 'Rescheduling...' : 'Reschedule unfinished to tomorrow'}
             </button>
           </li>
-        ))}
+        ) : null}
+        {scheduledTasks.map((task) => renderTaskRow(task, tasks.indexOf(task)))}
+        {unscheduledTasks.length > 0 ? (
+          <li className="list-view__section-heading">Unscheduled Tasks</li>
+        ) : null}
+        {unscheduledTasks.map((task) => renderTaskRow(task, tasks.indexOf(task)))}
       </ul>
     </div>
   )

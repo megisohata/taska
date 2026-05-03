@@ -8,10 +8,25 @@ type Task = {
   estimatedMinutes: number
   scheduledStart: string | null
   scheduledEnd: string | null
+  googleCalendarEventId: string | null
   completed: boolean
 }
 
-type CalendarItem = Task & {
+type ExternalCalendarEvent = {
+  id: string
+  title: string
+  start: string
+  end: string
+}
+
+type CalendarItem = {
+  id: string
+  title: string
+  estimatedMinutes: number
+  scheduledStart: string | null
+  scheduledEnd: string | null
+  completed: boolean
+  source: 'task' | 'google'
   top: number
   blockTop: number
   blockHeight: number
@@ -43,6 +58,23 @@ function minutesFromDate(value: string): number {
   return date.getHours() * 60 + date.getMinutes()
 }
 
+function isSameLocalDay(value: string, day: Date): boolean {
+  const date = new Date(value)
+  return (
+    date.getFullYear() === day.getFullYear() &&
+    date.getMonth() === day.getMonth() &&
+    date.getDate() === day.getDate()
+  )
+}
+
+function getMsUntilNextLocalDay(): number {
+  const now = new Date()
+  const nextDay = new Date(now)
+  nextDay.setDate(now.getDate() + 1)
+  nextDay.setHours(0, 0, 0, 0)
+  return Math.max(1000, nextDay.getTime() - now.getTime())
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value))
 }
@@ -55,34 +87,75 @@ function hashString(value: string): number {
   return hash
 }
 
-function getDurationMinutes(task: Task): number {
-  if (task.scheduledStart !== null && task.scheduledEnd !== null) {
-    const start = minutesFromDate(task.scheduledStart)
-    const end = minutesFromDate(task.scheduledEnd)
+function getDurationMinutes(item: {
+  scheduledStart: string | null
+  scheduledEnd: string | null
+  estimatedMinutes: number
+}): number {
+  if (item.scheduledStart !== null && item.scheduledEnd !== null) {
+    const start = minutesFromDate(item.scheduledStart)
+    const end = minutesFromDate(item.scheduledEnd)
     if (end > start) return end - start
   }
 
-  return task.estimatedMinutes
+  return item.estimatedMinutes
 }
 
-function buildCalendarItems(tasks: Task[]): CalendarItem[] {
-  return tasks
-    .map((task, index) => {
+function buildCalendarItems(
+  tasks: Task[],
+  externalEvents: ExternalCalendarEvent[],
+  visibleDay: Date
+): CalendarItem[] {
+  const taskItems = tasks
+    .filter(
+      (task) => task.scheduledStart !== null && isSameLocalDay(task.scheduledStart, visibleDay)
+    )
+    .map((task) => ({
+      id: task.id,
+      title: task.title,
+      estimatedMinutes: task.estimatedMinutes,
+      scheduledStart: task.scheduledStart,
+      scheduledEnd: task.scheduledEnd,
+      completed: task.completed,
+      source: 'task' as const
+    }))
+  const taskGoogleIds = new Set(
+    tasks
+      .map((task) => task.googleCalendarEventId)
+      .filter((id): id is string => id !== null && id.length > 0)
+  )
+  const googleItems = externalEvents
+    .filter((event) => !taskGoogleIds.has(event.id))
+    .map((event) => ({
+      id: event.id,
+      title: event.title,
+      estimatedMinutes: 30,
+      scheduledStart: event.start,
+      scheduledEnd: event.end,
+      completed: false,
+      source: 'google' as const
+    }))
+
+  return [...taskItems, ...googleItems]
+    .map((item, index) => {
       const scheduledTop =
-        task.scheduledStart === null
+        item.scheduledStart === null
           ? (FALLBACK_STARTS[index] ?? index * 52)
-          : (minutesFromDate(task.scheduledStart) - VISIBLE_START_MINUTES) * PX_PER_MINUTE
+          : (minutesFromDate(item.scheduledStart) - VISIBLE_START_MINUTES) * PX_PER_MINUTE
       const top = Math.max(0, Math.round(scheduledTop))
-      const durationMinutes = getDurationMinutes(task)
+      const durationMinutes = getDurationMinutes(item)
       const blockHeight = clamp(Math.round(durationMinutes * PX_PER_MINUTE), 19, 120)
 
       return {
-        ...task,
+        ...item,
         top,
         blockTop: top,
         blockHeight,
         durationMinutes,
-        color: EVENT_COLORS[hashString(task.id) % EVENT_COLORS.length]
+        color:
+          item.source === 'google'
+            ? '#FFD98A'
+            : EVENT_COLORS[hashString(item.id) % EVENT_COLORS.length]
       }
     })
     .sort((a, b) => a.blockTop - b.blockTop)
@@ -143,13 +216,18 @@ function buildHourTicks(items: CalendarItem[]): HourTick[] {
 
 function Calendar(): React.JSX.Element {
   const [tasks, setTasks] = useState<Task[]>([])
+  const [externalEvents, setExternalEvents] = useState<ExternalCalendarEvent[]>([])
+  const [visibleDay, setVisibleDay] = useState(() => new Date())
 
   useEffect(() => {
     let cancelled = false
 
     async function loadTasks(): Promise<void> {
       try {
-        const data = await window.api.getTasks()
+        const [data, googleEvents] = await Promise.all([
+          window.api.getTasks(),
+          window.api.getGoogleCalendarEvents()
+        ])
         if (!cancelled) {
           setTasks(
             data.map((task) => ({
@@ -158,13 +236,16 @@ function Calendar(): React.JSX.Element {
               estimatedMinutes: task.estimatedMinutes,
               scheduledStart: task.scheduledStart,
               scheduledEnd: task.scheduledEnd,
+              googleCalendarEventId: task.googleCalendarEventId,
               completed: task.completed
             }))
           )
+          setExternalEvents(googleEvents)
         }
       } catch {
         if (!cancelled) {
           setTasks([])
+          setExternalEvents([])
         }
       }
     }
@@ -174,21 +255,36 @@ function Calendar(): React.JSX.Element {
     }
 
     const onWindowFocus = (): void => {
+      setVisibleDay(new Date())
       void loadTasks()
     }
 
+    let midnightTimer: number
+    const scheduleMidnightRefresh = (): number => {
+      return window.setTimeout(() => {
+        setVisibleDay(new Date())
+        void loadTasks()
+        midnightTimer = scheduleMidnightRefresh()
+      }, getMsUntilNextLocalDay())
+    }
+
+    midnightTimer = scheduleMidnightRefresh()
     void loadTasks()
     window.addEventListener(TASKS_CHANGED_EVENT, onTasksChanged)
     window.addEventListener('focus', onWindowFocus)
 
     return () => {
       cancelled = true
+      window.clearTimeout(midnightTimer)
       window.removeEventListener(TASKS_CHANGED_EVENT, onTasksChanged)
       window.removeEventListener('focus', onWindowFocus)
     }
   }, [])
 
-  const calendarItems = useMemo(() => buildCalendarItems(tasks), [tasks])
+  const calendarItems = useMemo(
+    () => buildCalendarItems(tasks, externalEvents, visibleDay),
+    [tasks, externalEvents, visibleDay]
+  )
   const calendarConnectors = useMemo(() => buildCalendarConnectors(calendarItems), [calendarItems])
   const hourTicks = useMemo(() => buildHourTicks(calendarItems), [calendarItems])
   const calendarHeight = useMemo(() => {
@@ -218,6 +314,7 @@ function Calendar(): React.JSX.Element {
                 estimatedMinutes: updated.estimatedMinutes,
                 scheduledStart: updated.scheduledStart,
                 scheduledEnd: updated.scheduledEnd,
+                googleCalendarEventId: updated.googleCalendarEventId,
                 completed: updated.completed
               }
             : task
@@ -277,7 +374,9 @@ function Calendar(): React.JSX.Element {
           {calendarItems.map((task) => (
             <li
               key={task.id}
-              className={`calendar-task ${task.completed ? 'calendar-task--done' : ''}`}
+              className={`calendar-task ${task.completed ? 'calendar-task--done' : ''} ${
+                task.source === 'google' ? 'calendar-task--external' : ''
+              }`}
               style={{ top: `${task.top}px` }}
             >
               <span className="calendar-task__copy">
@@ -286,44 +385,46 @@ function Calendar(): React.JSX.Element {
                 </span>
                 <span className="calendar-task__time">{task.durationMinutes} Minutes</span>
               </span>
-              <button
-                type="button"
-                className="calendar-task__checkbox"
-                onClick={() => void toggleTask(task.id)}
-                aria-label={task.completed ? 'Mark incomplete' : 'Mark complete'}
-              >
-                {task.completed ? (
-                  <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
-                    <circle
-                      cx="10"
-                      cy="10"
-                      r="9.25"
-                      fill="#C5EF00"
-                      stroke="#000000"
-                      strokeWidth="1.5"
-                    />
-                    <path
-                      d="M6 10.4 L8.6 13 L14 7.2"
-                      stroke="#000000"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      fill="none"
-                    />
-                  </svg>
-                ) : (
-                  <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
-                    <circle
-                      cx="10"
-                      cy="10"
-                      r="9.25"
-                      fill="#FFF0CB"
-                      stroke="#000000"
-                      strokeWidth="1.5"
-                    />
-                  </svg>
-                )}
-              </button>
+              {task.source === 'task' ? (
+                <button
+                  type="button"
+                  className="calendar-task__checkbox"
+                  onClick={() => void toggleTask(task.id)}
+                  aria-label={task.completed ? 'Mark incomplete' : 'Mark complete'}
+                >
+                  {task.completed ? (
+                    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+                      <circle
+                        cx="10"
+                        cy="10"
+                        r="9.25"
+                        fill="#C5EF00"
+                        stroke="#000000"
+                        strokeWidth="1.5"
+                      />
+                      <path
+                        d="M6 10.4 L8.6 13 L14 7.2"
+                        stroke="#000000"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        fill="none"
+                      />
+                    </svg>
+                  ) : (
+                    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+                      <circle
+                        cx="10"
+                        cy="10"
+                        r="9.25"
+                        fill="#FFF0CB"
+                        stroke="#000000"
+                        strokeWidth="1.5"
+                      />
+                    </svg>
+                  )}
+                </button>
+              ) : null}
             </li>
           ))}
         </ul>

@@ -7,7 +7,20 @@ const api = {
   addTask: (data: { title: string; context?: string; urgency: 'low' | 'med' | 'high' }) =>
     ipcRenderer.invoke('tasks:add', data) as Promise<unknown>,
   completeTask: (id: string) => ipcRenderer.invoke('tasks:complete', id) as Promise<unknown>,
-  uncompleteTask: (id: string) => ipcRenderer.invoke('tasks:uncomplete', id) as Promise<unknown>
+  uncompleteTask: (id: string) => ipcRenderer.invoke('tasks:uncomplete', id) as Promise<unknown>,
+  rescheduleTomorrow: () => ipcRenderer.invoke('tasks:rescheduleTomorrow') as Promise<unknown[]>,
+  getSettings: () => ipcRenderer.invoke('settings:get') as Promise<unknown>,
+  saveSettings: (data: {
+    workStart: string
+    workEnd: string
+    schedulingPreferences: string
+    includedGoogleCalendarIds: string[]
+  }) => ipcRenderer.invoke('settings:save', data) as Promise<unknown>,
+  connectGoogleCalendar: () =>
+    ipcRenderer.invoke('googleCalendar:connect') as Promise<{ started: boolean }>,
+  getGoogleCalendarEvents: () =>
+    ipcRenderer.invoke('googleCalendar:getEvents') as Promise<unknown[]>,
+  getGoogleCalendars: () => ipcRenderer.invoke('googleCalendar:getCalendars') as Promise<unknown[]>
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

@@ -16,6 +16,7 @@ export type Task = {
   scheduledStart: string | null
   scheduledEnd: string | null
   googleCalendarEventId: string | null
+  actualMinutes: number | null
   completed: boolean
   completedAt: string | null
   manualOrder: number | null
@@ -26,6 +27,7 @@ export type NewTask = {
   title: string
   context?: string
   urgency: Urgency
+  estimatedMinutes?: number
 }
 
 const VALID_URGENCIES = ['low', 'med', 'high'] as const
@@ -33,6 +35,29 @@ const VALID_URGENCIES = ['low', 'med', 'high'] as const
 export type Setting = {
   key: string
   value: string
+}
+
+export type GoogleTokenSet = {
+  accessToken: string
+  refreshToken: string | null
+  scope: string | null
+  tokenType: string | null
+  expiryDate: number | null
+}
+
+type GoogleTokenRow = {
+  access_token: string
+  refresh_token: string | null
+  scope: string | null
+  token_type: string | null
+  expiry_date: number | null
+}
+
+export type SchedulerSettings = {
+  workStart: string
+  workEnd: string
+  schedulingPreferences: string
+  includedGoogleCalendarIds: string[]
 }
 
 type TaskRow = {
@@ -44,6 +69,7 @@ type TaskRow = {
   scheduled_start: string | null
   scheduled_end: string | null
   google_event_id: string | null
+  actual_minutes: number | null
   completed: number
   completed_at: string | null
   manual_order: number | null
@@ -73,6 +99,7 @@ function mapTaskRow(row: TaskRow): Task {
     scheduledStart: row.scheduled_start,
     scheduledEnd: row.scheduled_end,
     googleCalendarEventId: row.google_event_id,
+    actualMinutes: row.actual_minutes,
     completed: row.completed === 1,
     completedAt: row.completed_at,
     manualOrder: row.manual_order,
@@ -102,6 +129,7 @@ export function initDatabase(basePath: string): Database.Database {
       scheduled_start   TEXT,
       scheduled_end     TEXT,
       google_event_id   TEXT,
+      actual_minutes     INTEGER,
       completed         INTEGER NOT NULL DEFAULT 0,
       completed_at      TEXT,
       manual_order      INTEGER,
@@ -112,10 +140,31 @@ export function initDatabase(basePath: string): Database.Database {
       key   TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS google_oauth_tokens (
+      id            INTEGER PRIMARY KEY CHECK (id = 1),
+      access_token  TEXT NOT NULL,
+      refresh_token TEXT,
+      scope         TEXT,
+      token_type    TEXT,
+      expiry_date   INTEGER,
+      updated_at    TEXT NOT NULL
+    );
   `)
 
+  migrateTasksTable()
   seedDefaultSettings()
   return db
+}
+
+function migrateTasksTable(): void {
+  const database = ensureDatabase()
+  const columns = database.prepare('PRAGMA table_info(tasks)').all() as Array<{ name: string }>
+  const columnNames = new Set(columns.map((column) => column.name))
+
+  if (!columnNames.has('actual_minutes')) {
+    database.prepare('ALTER TABLE tasks ADD COLUMN actual_minutes INTEGER').run()
+  }
 }
 
 // Default settings
@@ -130,7 +179,10 @@ function seedDefaultSettings(): void {
     { key: 'lookaheadDays', value: '7' },
     { key: 'calendarColor', value: '#F6BF26' },
     { key: 'bufferMinutes', value: '10' },
-    { key: 'calendarId', value: '' }
+    { key: 'calendarId', value: '' },
+    { key: 'includedGoogleCalendarIds', value: '' },
+    { key: 'openAiModel', value: 'gpt-5.4-mini' },
+    { key: 'schedulingPreferences', value: '' }
   ]
 
   const seed = database.transaction((items: Setting[]) => {
@@ -148,7 +200,7 @@ const TASK_SELECT = `
   SELECT
     id, title, context, urgency,
     estimated_minutes, scheduled_start, scheduled_end,
-    google_event_id, completed, completed_at, manual_order, created_at
+    google_event_id, actual_minutes, completed, completed_at, manual_order, created_at
   FROM tasks
 `
 
@@ -201,23 +253,27 @@ export function insertTask(input: NewTask): Task {
   const id = uuidv4()
   const now = new Date().toISOString()
   const urgency = VALID_URGENCIES.includes(input.urgency) ? input.urgency : 'med'
+  const estimatedMinutes =
+    typeof input.estimatedMinutes === 'number' && input.estimatedMinutes > 0
+      ? Math.round(input.estimatedMinutes)
+      : 30
 
   database
     .prepare(
       `
-    INSERT INTO tasks (id, title, context, urgency, created_at)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO tasks (id, title, context, urgency, estimated_minutes, created_at)
+    VALUES (?, ?, ?, ?, ?, ?)
   `
     )
-    .run(id, input.title, input.context ?? null, urgency, now)
+    .run(id, input.title, input.context ?? null, urgency, estimatedMinutes, now)
 
   return getTaskById(id)
 }
 
 export function setTaskScheduled(
   id: string,
-  scheduledStart: string,
-  scheduledEnd: string,
+  scheduledStart: string | null,
+  scheduledEnd: string | null,
   googleEventId: string | null
 ): Task {
   const database = ensureDatabase()
@@ -234,16 +290,21 @@ export function setTaskScheduled(
 export function setTaskCompleted(
   id: string,
   completed: boolean,
-  completedAt?: string | null
+  completedAt?: string | null,
+  actualMinutes?: number | null
 ): Task {
   const database = ensureDatabase()
 
   if (completed) {
     database
-      .prepare('UPDATE tasks SET completed = 1, completed_at = ? WHERE id = ?')
-      .run(completedAt ?? new Date().toISOString(), id)
+      .prepare('UPDATE tasks SET completed = 1, completed_at = ?, actual_minutes = ? WHERE id = ?')
+      .run(completedAt ?? new Date().toISOString(), actualMinutes ?? null, id)
   } else {
-    database.prepare('UPDATE tasks SET completed = 0, completed_at = NULL WHERE id = ?').run(id)
+    database
+      .prepare(
+        'UPDATE tasks SET completed = 0, completed_at = NULL, actual_minutes = NULL WHERE id = ?'
+      )
+      .run(id)
   }
 
   return getTaskById(id)
@@ -285,4 +346,92 @@ export function setSetting(key: string, value: string): Setting {
     )
     .run(key, value)
   return { key, value }
+}
+
+function parseJsonStringArray(value: string | null): string[] {
+  if (!value) return []
+
+  try {
+    const parsed = JSON.parse(value) as unknown
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter((item): item is string => typeof item === 'string' && item.length > 0)
+  } catch {
+    return []
+  }
+}
+
+export function getSchedulerSettings(): SchedulerSettings {
+  return {
+    workStart: getSetting('workStart') ?? '09:00',
+    workEnd: getSetting('workEnd') ?? '18:00',
+    schedulingPreferences: getSetting('schedulingPreferences') ?? '',
+    includedGoogleCalendarIds: parseJsonStringArray(getSetting('includedGoogleCalendarIds'))
+  }
+}
+
+export function setSchedulerSettings(settings: SchedulerSettings): SchedulerSettings {
+  const database = ensureDatabase()
+  const update = database.prepare(
+    `INSERT INTO settings (key, value) VALUES (?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`
+  )
+  const transaction = database.transaction((next: SchedulerSettings) => {
+    update.run('workStart', next.workStart)
+    update.run('workEnd', next.workEnd)
+    update.run('schedulingPreferences', next.schedulingPreferences)
+    update.run('includedGoogleCalendarIds', JSON.stringify(next.includedGoogleCalendarIds))
+  })
+
+  transaction(settings)
+  return getSchedulerSettings()
+}
+
+export function saveGoogleTokens(tokens: GoogleTokenSet): void {
+  ensureDatabase()
+    .prepare(
+      `INSERT INTO google_oauth_tokens (
+         id, access_token, refresh_token, scope, token_type, expiry_date, updated_at
+       ) VALUES (1, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         access_token = excluded.access_token,
+         refresh_token = COALESCE(excluded.refresh_token, google_oauth_tokens.refresh_token),
+         scope = excluded.scope,
+         token_type = excluded.token_type,
+         expiry_date = excluded.expiry_date,
+         updated_at = excluded.updated_at`
+    )
+    .run(
+      tokens.accessToken,
+      tokens.refreshToken,
+      tokens.scope,
+      tokens.tokenType,
+      tokens.expiryDate,
+      new Date().toISOString()
+    )
+}
+
+export function getGoogleTokens(): GoogleTokenSet | null {
+  const row = ensureDatabase()
+    .prepare(
+      `SELECT access_token, refresh_token, scope, token_type, expiry_date
+       FROM google_oauth_tokens WHERE id = 1`
+    )
+    .get() as GoogleTokenRow | undefined
+
+  if (!row) return null
+
+  return {
+    accessToken: row.access_token,
+    refreshToken: row.refresh_token,
+    scope: row.scope,
+    tokenType: row.token_type,
+    expiryDate: row.expiry_date
+  }
+}
+
+export function hasGoogleTokens(): boolean {
+  const row = ensureDatabase()
+    .prepare('SELECT 1 FROM google_oauth_tokens WHERE id = 1 LIMIT 1')
+    .get() as { 1: number } | undefined
+  return row !== undefined
 }
