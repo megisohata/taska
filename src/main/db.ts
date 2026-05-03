@@ -16,6 +16,7 @@ export type Task = {
   scheduledStart: string | null
   scheduledEnd: string | null
   googleCalendarEventId: string | null
+  actualMinutes: number | null
   completed: boolean
   completedAt: string | null
   manualOrder: number | null
@@ -68,6 +69,7 @@ type TaskRow = {
   scheduled_start: string | null
   scheduled_end: string | null
   google_event_id: string | null
+  actual_minutes: number | null
   completed: number
   completed_at: string | null
   manual_order: number | null
@@ -97,6 +99,7 @@ function mapTaskRow(row: TaskRow): Task {
     scheduledStart: row.scheduled_start,
     scheduledEnd: row.scheduled_end,
     googleCalendarEventId: row.google_event_id,
+    actualMinutes: row.actual_minutes,
     completed: row.completed === 1,
     completedAt: row.completed_at,
     manualOrder: row.manual_order,
@@ -126,6 +129,7 @@ export function initDatabase(basePath: string): Database.Database {
       scheduled_start   TEXT,
       scheduled_end     TEXT,
       google_event_id   TEXT,
+      actual_minutes     INTEGER,
       completed         INTEGER NOT NULL DEFAULT 0,
       completed_at      TEXT,
       manual_order      INTEGER,
@@ -148,8 +152,19 @@ export function initDatabase(basePath: string): Database.Database {
     );
   `)
 
+  migrateTasksTable()
   seedDefaultSettings()
   return db
+}
+
+function migrateTasksTable(): void {
+  const database = ensureDatabase()
+  const columns = database.prepare('PRAGMA table_info(tasks)').all() as Array<{ name: string }>
+  const columnNames = new Set(columns.map((column) => column.name))
+
+  if (!columnNames.has('actual_minutes')) {
+    database.prepare('ALTER TABLE tasks ADD COLUMN actual_minutes INTEGER').run()
+  }
 }
 
 // Default settings
@@ -185,7 +200,7 @@ const TASK_SELECT = `
   SELECT
     id, title, context, urgency,
     estimated_minutes, scheduled_start, scheduled_end,
-    google_event_id, completed, completed_at, manual_order, created_at
+    google_event_id, actual_minutes, completed, completed_at, manual_order, created_at
   FROM tasks
 `
 
@@ -257,8 +272,8 @@ export function insertTask(input: NewTask): Task {
 
 export function setTaskScheduled(
   id: string,
-  scheduledStart: string,
-  scheduledEnd: string,
+  scheduledStart: string | null,
+  scheduledEnd: string | null,
   googleEventId: string | null
 ): Task {
   const database = ensureDatabase()
@@ -275,16 +290,21 @@ export function setTaskScheduled(
 export function setTaskCompleted(
   id: string,
   completed: boolean,
-  completedAt?: string | null
+  completedAt?: string | null,
+  actualMinutes?: number | null
 ): Task {
   const database = ensureDatabase()
 
   if (completed) {
     database
-      .prepare('UPDATE tasks SET completed = 1, completed_at = ? WHERE id = ?')
-      .run(completedAt ?? new Date().toISOString(), id)
+      .prepare('UPDATE tasks SET completed = 1, completed_at = ?, actual_minutes = ? WHERE id = ?')
+      .run(completedAt ?? new Date().toISOString(), actualMinutes ?? null, id)
   } else {
-    database.prepare('UPDATE tasks SET completed = 0, completed_at = NULL WHERE id = ?').run(id)
+    database
+      .prepare(
+        'UPDATE tasks SET completed = 0, completed_at = NULL, actual_minutes = NULL WHERE id = ?'
+      )
+      .run(id)
   }
 
   return getTaskById(id)

@@ -13,7 +13,18 @@ type GoogleCalendar = {
   summary: string
   primary: boolean
   selected: boolean
+  isTaska: boolean
   backgroundColor: string | null
+}
+
+function includeRequiredTaskaCalendar(
+  calendarIds: string[],
+  googleCalendars: GoogleCalendar[]
+): string[] {
+  const next = new Set(calendarIds)
+  const taskaCalendar = googleCalendars.find((calendar) => calendar.isTaska)
+  if (taskaCalendar) next.add(taskaCalendar.id)
+  return [...next]
 }
 
 function SettingsOverlay({ onClose }: SettingsOverlayProps): React.JSX.Element {
@@ -49,7 +60,13 @@ function SettingsOverlay({ onClose }: SettingsOverlayProps): React.JSX.Element {
           setCalendars(googleCalendars)
           if (!settings.googleCalendarSelectionConfigured) {
             setIncludedGoogleCalendarIds(
-              googleCalendars.filter((calendar) => calendar.selected).map((calendar) => calendar.id)
+              googleCalendars
+                .filter((calendar) => calendar.selected || calendar.isTaska)
+                .map((calendar) => calendar.id)
+            )
+          } else {
+            setIncludedGoogleCalendarIds(
+              includeRequiredTaskaCalendar(settings.includedGoogleCalendarIds, googleCalendars)
             )
           }
           setCalendarsState('idle')
@@ -78,7 +95,10 @@ function SettingsOverlay({ onClose }: SettingsOverlayProps): React.JSX.Element {
         workStart,
         workEnd,
         schedulingPreferences,
-        includedGoogleCalendarIds
+        includedGoogleCalendarIds: includeRequiredTaskaCalendar(
+          includedGoogleCalendarIds,
+          calendars
+        )
       })
       setGoogleConnected(settings.googleCalendarConnected)
       setIncludedGoogleCalendarIds(settings.includedGoogleCalendarIds)
@@ -111,7 +131,13 @@ function SettingsOverlay({ onClose }: SettingsOverlayProps): React.JSX.Element {
 
       if (!googleCalendarSelectionConfigured) {
         setIncludedGoogleCalendarIds(
-          googleCalendars.filter((calendar) => calendar.selected).map((calendar) => calendar.id)
+          googleCalendars
+            .filter((calendar) => calendar.selected || calendar.isTaska)
+            .map((calendar) => calendar.id)
+        )
+      } else {
+        setIncludedGoogleCalendarIds(
+          includeRequiredTaskaCalendar(includedGoogleCalendarIds, googleCalendars)
         )
       }
     } catch {
@@ -120,6 +146,8 @@ function SettingsOverlay({ onClose }: SettingsOverlayProps): React.JSX.Element {
   }
 
   function toggleCalendar(calendarId: string): void {
+    if (calendars.some((calendar) => calendar.id === calendarId && calendar.isTaska)) return
+
     setGoogleCalendarSelectionConfigured(true)
     setIncludedGoogleCalendarIds((prev) =>
       prev.includes(calendarId) ? prev.filter((id) => id !== calendarId) : [...prev, calendarId]
@@ -177,10 +205,16 @@ function SettingsOverlay({ onClose }: SettingsOverlayProps): React.JSX.Element {
                 ) : null}
 
                 {calendars.map((calendar) => (
-                  <label key={calendar.id} className="settings-overlay__calendar-option">
+                  <label
+                    key={calendar.id}
+                    className={`settings-overlay__calendar-option ${
+                      calendar.isTaska ? 'settings-overlay__calendar-option--required' : ''
+                    }`}
+                  >
                     <input
                       type="checkbox"
-                      checked={includedGoogleCalendarIds.includes(calendar.id)}
+                      checked={calendar.isTaska || includedGoogleCalendarIds.includes(calendar.id)}
+                      disabled={calendar.isTaska}
                       onChange={() => toggleCalendar(calendar.id)}
                     />
                     <span
@@ -191,6 +225,7 @@ function SettingsOverlay({ onClose }: SettingsOverlayProps): React.JSX.Element {
                     <span className="settings-overlay__calendar-name">
                       {calendar.summary}
                       {calendar.primary ? ' (Primary)' : ''}
+                      {calendar.isTaska ? ' (Required)' : ''}
                     </span>
                   </label>
                 ))}

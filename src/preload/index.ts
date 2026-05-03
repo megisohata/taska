@@ -8,6 +8,7 @@ const api = {
     ipcRenderer.invoke('tasks:add', data) as Promise<unknown>,
   completeTask: (id: string) => ipcRenderer.invoke('tasks:complete', id) as Promise<unknown>,
   uncompleteTask: (id: string) => ipcRenderer.invoke('tasks:uncomplete', id) as Promise<unknown>,
+  rescheduleTomorrow: () => ipcRenderer.invoke('tasks:rescheduleTomorrow') as Promise<unknown[]>,
   getSettings: () => ipcRenderer.invoke('settings:get') as Promise<unknown>,
   saveSettings: (data: {
     workStart: string

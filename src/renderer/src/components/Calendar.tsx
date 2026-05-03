@@ -67,6 +67,14 @@ function isSameLocalDay(value: string, day: Date): boolean {
   )
 }
 
+function getMsUntilNextLocalDay(): number {
+  const now = new Date()
+  const nextDay = new Date(now)
+  nextDay.setDate(now.getDate() + 1)
+  nextDay.setHours(0, 0, 0, 0)
+  return Math.max(1000, nextDay.getTime() - now.getTime())
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value))
 }
@@ -95,9 +103,9 @@ function getDurationMinutes(item: {
 
 function buildCalendarItems(
   tasks: Task[],
-  externalEvents: ExternalCalendarEvent[]
+  externalEvents: ExternalCalendarEvent[],
+  visibleDay: Date
 ): CalendarItem[] {
-  const visibleDay = new Date()
   const taskItems = tasks
     .filter(
       (task) => task.scheduledStart !== null && isSameLocalDay(task.scheduledStart, visibleDay)
@@ -209,6 +217,7 @@ function buildHourTicks(items: CalendarItem[]): HourTick[] {
 function Calendar(): React.JSX.Element {
   const [tasks, setTasks] = useState<Task[]>([])
   const [externalEvents, setExternalEvents] = useState<ExternalCalendarEvent[]>([])
+  const [visibleDay, setVisibleDay] = useState(() => new Date())
 
   useEffect(() => {
     let cancelled = false
@@ -246,23 +255,35 @@ function Calendar(): React.JSX.Element {
     }
 
     const onWindowFocus = (): void => {
+      setVisibleDay(new Date())
       void loadTasks()
     }
 
+    let midnightTimer: number
+    const scheduleMidnightRefresh = (): number => {
+      return window.setTimeout(() => {
+        setVisibleDay(new Date())
+        void loadTasks()
+        midnightTimer = scheduleMidnightRefresh()
+      }, getMsUntilNextLocalDay())
+    }
+
+    midnightTimer = scheduleMidnightRefresh()
     void loadTasks()
     window.addEventListener(TASKS_CHANGED_EVENT, onTasksChanged)
     window.addEventListener('focus', onWindowFocus)
 
     return () => {
       cancelled = true
+      window.clearTimeout(midnightTimer)
       window.removeEventListener(TASKS_CHANGED_EVENT, onTasksChanged)
       window.removeEventListener('focus', onWindowFocus)
     }
   }, [])
 
   const calendarItems = useMemo(
-    () => buildCalendarItems(tasks, externalEvents),
-    [tasks, externalEvents]
+    () => buildCalendarItems(tasks, externalEvents, visibleDay),
+    [tasks, externalEvents, visibleDay]
   )
   const calendarConnectors = useMemo(() => buildCalendarConnectors(calendarItems), [calendarItems])
   const hourTicks = useMemo(() => buildHourTicks(calendarItems), [calendarItems])

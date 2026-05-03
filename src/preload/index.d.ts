@@ -11,6 +11,7 @@ type TaskApiModel = {
   scheduledStart: string | null
   scheduledEnd: string | null
   googleCalendarEventId: string | null
+  actualMinutes: number | null
   completed: boolean
   completedAt: string | null
   manualOrder: number | null
@@ -45,6 +46,7 @@ type GoogleCalendarApiModel = {
   summary: string
   primary: boolean
   selected: boolean
+  isTaska: boolean
   backgroundColor: string | null
 }
 
@@ -60,6 +62,7 @@ type AppApi = {
   addTask: (data: AddTaskInput) => Promise<TaskApiModel>
   completeTask: (id: string) => Promise<TaskApiModel>
   uncompleteTask: (id: string) => Promise<TaskApiModel>
+  rescheduleTomorrow: () => Promise<TaskApiModel[]>
   getSettings: () => Promise<SettingsApiModel>
   saveSettings: (data: SaveSettingsInput) => Promise<SettingsApiModel>
   connectGoogleCalendar: () => Promise<{ started: boolean }>

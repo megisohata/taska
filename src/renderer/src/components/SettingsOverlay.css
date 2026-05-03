@@ -186,6 +186,14 @@
   accent-color: var(--light-orange);
 }
 
+.settings-overlay__calendar-option--required input {
+  cursor: not-allowed;
+}
+
+.settings-overlay__calendar-option--required .settings-overlay__calendar-name {
+  color: #6b6b6b;
+}
+
 .settings-overlay__calendar-swatch {
   width: 10px;
   height: 10px;

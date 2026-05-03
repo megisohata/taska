@@ -199,6 +199,32 @@
   text-align: left;
 }
 
+.list-view__action-row {
+  display: flex;
+  flex-shrink: 0;
+  justify-content: center;
+  list-style: none;
+}
+
+.list-view__tomorrow {
+  width: 240px;
+  height: 22px;
+  border: 1px solid black;
+  border-radius: 999px;
+  background: var(--blue);
+  color: black;
+  font-family: 'Inter', sans-serif;
+  font-size: 9px;
+  line-height: 10px;
+  cursor: pointer;
+  padding: 0 8px;
+}
+
+.list-view__tomorrow:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
 .task-row {
   display: flex;
   align-items: center;
@@ -237,6 +263,10 @@
 
 .task-row__title-text {
   display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .task-row--done .task-row__title-text {
@@ -257,10 +287,15 @@
 
 .task-row__title {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
   font-size: 24px;
   font-family: 'Gidugu', sans-serif;
   font-weight: 400;
   color: black;
+  line-height: 24px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .task-row__time {

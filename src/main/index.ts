@@ -12,19 +12,23 @@ import {
   initDatabase,
   saveGoogleTokens,
   setSchedulerSettings,
-  setTaskCompleted,
   type NewTask,
   type SchedulerSettings
 } from './db'
 import {
+  completeTaskAndRefreshSchedule,
   createScheduledTask,
   getGoogleCalendars,
-  getVisibleGoogleCalendarEvents
+  getVisibleGoogleCalendarEvents,
+  rescheduleUnfinishedTasksToTomorrow,
+  uncompleteTaskAndRefreshSchedule,
+  withRequiredTaskaCalendar
 } from './scheduler'
 
 const GOOGLE_OAUTH_PORT = 42813
 const GOOGLE_REDIRECT_URI = `http://127.0.0.1:${GOOGLE_OAUTH_PORT}/oauth/google/callback`
 const GOOGLE_SCOPES = [
+  'https://www.googleapis.com/auth/calendar',
   'https://www.googleapis.com/auth/calendar.events',
   'https://www.googleapis.com/auth/calendar.events.readonly',
   'https://www.googleapis.com/auth/calendar.calendarlist.readonly'
@@ -192,12 +196,16 @@ function registerTaskIpcHandlers(): void {
     return createScheduledTask(data, { protectSecret, revealSecret })
   })
 
-  ipcMain.handle('tasks:complete', (_, id: string) => {
-    return setTaskCompleted(id, true)
+  ipcMain.handle('tasks:complete', async (_, id: string) => {
+    return completeTaskAndRefreshSchedule(id, { protectSecret, revealSecret })
   })
 
-  ipcMain.handle('tasks:uncomplete', (_, id: string) => {
-    return setTaskCompleted(id, false)
+  ipcMain.handle('tasks:uncomplete', async (_, id: string) => {
+    return uncompleteTaskAndRefreshSchedule(id, { protectSecret, revealSecret })
+  })
+
+  ipcMain.handle('tasks:rescheduleTomorrow', async () => {
+    return rescheduleUnfinishedTasksToTomorrow({ protectSecret, revealSecret })
   })
 }
 
@@ -210,8 +218,17 @@ function registerSettingsIpcHandlers(): void {
     }
   })
 
-  ipcMain.handle('settings:save', (_, settings: SchedulerSettings) => {
-    const saved = setSchedulerSettings(settings)
+  ipcMain.handle('settings:save', async (_, settings: SchedulerSettings) => {
+    const saved = setSchedulerSettings({
+      ...settings,
+      includedGoogleCalendarIds: await withRequiredTaskaCalendar(
+        settings.includedGoogleCalendarIds,
+        {
+          protectSecret,
+          revealSecret
+        }
+      )
+    })
     return {
       ...saved,
       googleCalendarSelectionConfigured: true,
