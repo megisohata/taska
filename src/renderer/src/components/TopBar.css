@@ -1,20 +1,27 @@
 @import '../assets/base.css';
 
 .top-bar {
-  width: min(320px, calc(100vw - 30px));
+  position: absolute;
+  top: 7px;
+  left: 14.5px;
+  width: 321px;
+  height: 24px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 0;
+  gap: 4px;
+  z-index: 10;
 }
 
 .top-bar--settings-only {
+  left: 320px;
+  width: 24px;
   justify-content: flex-end;
 }
 
 .top-bar__progress {
   flex: 0 0 293px;
   width: 293px;
+  margin-top: 2px;
 }
 
 .top-bar__progress-track {
@@ -22,10 +29,10 @@
   height: 15px;
   width: 100%;
   position: relative;
-  border: 1px solid #1A1A1A;
+  border: 1px solid #1a1a1a;
   border-radius: 999px;
-  background: #FFD98A;
-  box-shadow: 4px 4px 0 #1A1A1A;
+  background: #ffd98a;
+  box-shadow: 4px 4px 0 #1a1a1a;
   overflow: hidden;
 }
 
@@ -36,7 +43,7 @@
   left: 0;
   width: 7.5px;
   height: 100%;
-  background: #FFB23E;
+  background: #ffb23e;
   border-radius: 999px 0 0 999px;
   pointer-events: none;
 }
@@ -47,11 +54,11 @@
   width: max(15px, var(--progress));
   background: linear-gradient(
     90deg,
-    #FFB23E 0%,
-    #FFA1CA 25%,
-    #BB89C7 50%,
-    #8DEAFF 75%,
-    #C5EF00 100%
+    #ffb23e 0%,
+    #ffa1ca 25%,
+    #bb89c7 50%,
+    #8deaff 75%,
+    #c5ef00 100%
   );
   background-size: 293px 100%;
   background-repeat: no-repeat;
@@ -67,7 +74,7 @@
   width: 7.5px;
   height: 15px;
   box-sizing: border-box;
-  border: 1px solid #1A1A1A;
+  border: 1px solid #1a1a1a;
   border-left: none;
   border-radius: 0 7.5px 7.5px 0;
   background: transparent;
@@ -86,7 +93,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #1A1A1A;
+  color: #1a1a1a;
   cursor: pointer;
 }
 

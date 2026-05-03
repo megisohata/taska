@@ -354,7 +354,7 @@ function List(): React.JSX.Element {
                 </svg>
               ) : (
                 <svg width="18" height="18" viewBox="0 0 18 18">
-                  <circle cx="9" cy="9" r="8" fill="none" stroke="#000000" strokeWidth="1.5" />
+                  <circle cx="9" cy="9" r="8" fill="#FFF0CB" stroke="#000000" strokeWidth="1.5" />
                 </svg>
               )}
             </button>

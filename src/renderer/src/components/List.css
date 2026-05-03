@@ -1,21 +1,18 @@
 @import '../assets/base.css';
 
 .list-view {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20px;
-  width: min(320px, calc(100vw - 30px));
-  height: calc(100vh - 82px);
-  max-height: calc(100vh - 82px);
-  min-height: 0;
+  position: absolute;
+  inset: 0;
+  width: 350px;
+  height: 450px;
 }
 
 .list-view__ring-wrapper {
-  position: relative;
+  position: absolute;
+  top: 23px;
+  left: 86px;
   width: 191px;
   height: 191px;
-  flex-shrink: 0;
 }
 
 .ring-outer {
@@ -65,8 +62,14 @@
 }
 
 @keyframes arc-reveal {
-  from { opacity: 0; transform: scale(0.93); }
-  to   { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.93);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .progress-arc--reveal {
@@ -91,7 +94,7 @@
   transform: translateX(-50%);
   z-index: 3;
   font-size: 11px;
-  color: #6B6B6B;
+  color: #6b6b6b;
   font-family: 'Inter', sans-serif;
   white-space: nowrap;
 }
@@ -112,36 +115,68 @@
 
 /* Spin-flip transition using rotateY */
 @keyframes flip-out {
-  from { transform: rotateY(0deg);   opacity: 1; }
-  to   { transform: rotateY(90deg);  opacity: 0; }
+  from {
+    transform: rotateY(0deg);
+    opacity: 1;
+  }
+  to {
+    transform: rotateY(90deg);
+    opacity: 0;
+  }
 }
 
 @keyframes flip-in {
-  from { transform: rotateY(-90deg); opacity: 0; }
-  to   { transform: rotateY(0deg);   opacity: 1; }
+  from {
+    transform: rotateY(-90deg);
+    opacity: 0;
+  }
+  to {
+    transform: rotateY(0deg);
+    opacity: 1;
+  }
 }
 
-.face-display--out  { animation: flip-out 0.18s ease-in  forwards; }
-.face-display--in   { animation: flip-in  0.18s ease-out forwards; }
-.face-display--idle { animation: none; }
+.face-display--out {
+  animation: flip-out 0.18s ease-in forwards;
+}
+.face-display--in {
+  animation: flip-in 0.18s ease-out forwards;
+}
+.face-display--idle {
+  animation: none;
+}
 
 .list-view__tasks {
+  position: absolute;
+  top: 225px;
+  left: 23px;
   list-style: none;
   padding: 0;
   margin: 0;
-  width: 100%;
+  width: 316px;
+  height: 166px;
   display: flex;
   flex-direction: column;
   gap: 5px;
-  flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding-right: 6px;
-  scrollbar-width: none;
+  padding-right: 13px;
+  scrollbar-color: black transparent;
+  scrollbar-width: thin;
 }
 
 .list-view__tasks::-webkit-scrollbar {
-  display: none;
+  width: 5px;
+}
+
+.list-view__tasks::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.list-view__tasks::-webkit-scrollbar-thumb {
+  border: 1px solid black;
+  border-radius: 999px;
+  background: var(--light-orange);
 }
 
 .task-row {
@@ -151,7 +186,7 @@
   width: 100%;
   height: 33px;
   box-sizing: border-box;
-  background: #FFD98A;
+  background: #ffd98a;
   border: none;
   border-radius: 10px;
   padding: 0 10px;
@@ -177,7 +212,7 @@
 }
 
 .task-row--done .task-row__title {
-  color: #6B6B6B;
+  color: #6b6b6b;
 }
 
 .task-row__title-text {
@@ -186,7 +221,7 @@
 
 .task-row--done .task-row__title-text {
   position: relative;
-  color: #6B6B6B;
+  color: #6b6b6b;
 }
 
 .task-row--done .task-row__title-text::after {
@@ -196,7 +231,7 @@
   right: 0;
   top: 50%;
   height: 1.5px;
-  background: #6B6B6B;
+  background: #6b6b6b;
   pointer-events: none;
 }
 
@@ -210,11 +245,14 @@
 
 .task-row__time {
   font-size: 10px;
-  color: #6B6B6B;
+  color: #6b6b6b;
   white-space: nowrap;
 }
 
 .task-row__checkbox {
+  position: relative;
+  width: 22px;
+  height: 22px;
   background: none;
   border: none;
   padding: 0;
@@ -225,6 +263,22 @@
   flex-shrink: 0;
 }
 
+.task-row__checkbox::before {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: black;
+}
+
+.task-row__checkbox svg {
+  position: relative;
+  z-index: 1;
+}
+
 .checkmark-path {
   stroke-dasharray: 20;
   stroke-dashoffset: 0;
@@ -232,6 +286,10 @@
 }
 
 @keyframes draw-check {
-  from { stroke-dashoffset: 20; }
-  to   { stroke-dashoffset: 0;  }
+  from {
+    stroke-dashoffset: 20;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
 }

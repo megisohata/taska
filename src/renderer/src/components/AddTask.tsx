@@ -54,7 +54,7 @@ function AddTask(): React.JSX.Element {
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Title"
+            placeholder="Description"
             disabled={loading}
           />
         </div>
