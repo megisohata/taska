@@ -11,6 +11,7 @@ type Task = {
   id: string
   title: string
   estimatedMinutes: number
+  scheduledStart: string | null
   completed: boolean
 }
 
@@ -232,6 +233,7 @@ function List(): React.JSX.Element {
               id: task.id,
               title: task.title,
               estimatedMinutes: task.estimatedMinutes,
+              scheduledStart: task.scheduledStart,
               completed: task.completed
             }))
           )
@@ -295,6 +297,7 @@ function List(): React.JSX.Element {
                 ...task,
                 title: updated.title,
                 estimatedMinutes: updated.estimatedMinutes,
+                scheduledStart: updated.scheduledStart,
                 completed: updated.completed
               }
             : task
@@ -304,6 +307,53 @@ function List(): React.JSX.Element {
     } catch {
       return
     }
+  }
+
+  const scheduledTasks = tasks.filter((task) => task.scheduledStart !== null)
+  const unscheduledTasks = tasks.filter((task) => task.scheduledStart === null)
+
+  function renderTaskRow(task: Task, index: number): React.JSX.Element {
+    return (
+      <li
+        key={task.id}
+        className={`task-row ${task.completed ? 'task-row--done' : ''}`}
+        draggable
+        onDragStart={() => handleDragStart(index)}
+        onDragEnter={() => handleDragEnter(index)}
+        onDragEnd={handleDragEnd}
+        onDragOver={(e) => e.preventDefault()}
+      >
+        <img src={hamburger} alt="" className="task-row__handle" draggable={false} />
+        <span className="task-row__title">
+          <span className="task-row__title-text">{task.title}</span>
+        </span>
+        <span className="task-row__time">{task.estimatedMinutes} min</span>
+        <button
+          className="task-row__checkbox"
+          onClick={() => void toggleTask(task.id)}
+          aria-label={task.completed ? 'Mark incomplete' : 'Mark complete'}
+        >
+          {task.completed ? (
+            <svg width="18" height="18" viewBox="0 0 18 18">
+              <circle cx="9" cy="9" r="8" fill="#C5EF00" stroke="#000000" strokeWidth="1.5" />
+              <path
+                d="M5 9.5 L7.5 12 L13 6.5"
+                stroke="#000000"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                fill="none"
+                className="checkmark-path"
+              />
+            </svg>
+          ) : (
+            <svg width="18" height="18" viewBox="0 0 18 18">
+              <circle cx="9" cy="9" r="8" fill="#FFF0CB" stroke="#000000" strokeWidth="1.5" />
+            </svg>
+          )}
+        </button>
+      </li>
+    )
   }
 
   return (
@@ -320,47 +370,11 @@ function List(): React.JSX.Element {
 
       <ul className="list-view__tasks">
         {tasks.length === 0 ? <li className="list-view__empty">No tasks yet!</li> : null}
-        {tasks.map((task, index) => (
-          <li
-            key={task.id}
-            className={`task-row ${task.completed ? 'task-row--done' : ''}`}
-            draggable
-            onDragStart={() => handleDragStart(index)}
-            onDragEnter={() => handleDragEnter(index)}
-            onDragEnd={handleDragEnd}
-            onDragOver={(e) => e.preventDefault()}
-          >
-            <img src={hamburger} alt="" className="task-row__handle" draggable={false} />
-            <span className="task-row__title">
-              <span className="task-row__title-text">{task.title}</span>
-            </span>
-            <span className="task-row__time">{task.estimatedMinutes} min</span>
-            <button
-              className="task-row__checkbox"
-              onClick={() => void toggleTask(task.id)}
-              aria-label={task.completed ? 'Mark incomplete' : 'Mark complete'}
-            >
-              {task.completed ? (
-                <svg width="18" height="18" viewBox="0 0 18 18">
-                  <circle cx="9" cy="9" r="8" fill="#C5EF00" stroke="#000000" strokeWidth="1.5" />
-                  <path
-                    d="M5 9.5 L7.5 12 L13 6.5"
-                    stroke="#000000"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    fill="none"
-                    className="checkmark-path"
-                  />
-                </svg>
-              ) : (
-                <svg width="18" height="18" viewBox="0 0 18 18">
-                  <circle cx="9" cy="9" r="8" fill="#FFF0CB" stroke="#000000" strokeWidth="1.5" />
-                </svg>
-              )}
-            </button>
-          </li>
-        ))}
+        {scheduledTasks.map((task) => renderTaskRow(task, tasks.indexOf(task)))}
+        {unscheduledTasks.length > 0 ? (
+          <li className="list-view__section-heading">Unscheduled Tasks</li>
+        ) : null}
+        {unscheduledTasks.map((task) => renderTaskRow(task, tasks.indexOf(task)))}
       </ul>
     </div>
   )

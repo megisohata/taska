@@ -166,6 +166,14 @@
   pointer-events: none;
 }
 
+.calendar-task--external {
+  width: 190px;
+}
+
+.calendar-task--external .calendar-task__title {
+  max-width: 190px;
+}
+
 .calendar-task__checkbox {
   position: relative;
   width: 24px;

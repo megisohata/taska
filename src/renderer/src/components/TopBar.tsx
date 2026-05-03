@@ -13,9 +13,10 @@ const TASKS_CHANGED_EVENT = 'tasks:changed'
 
 type TopBarProps = {
   showProgress?: boolean
+  onOpenSettings?: () => void
 }
 
-function TopBar({ showProgress = true }: TopBarProps): React.JSX.Element {
+function TopBar({ showProgress = true, onOpenSettings }: TopBarProps): React.JSX.Element {
   const [tasks, setTasks] = useState<Task[]>([])
 
   useEffect(() => {
@@ -84,7 +85,12 @@ function TopBar({ showProgress = true }: TopBarProps): React.JSX.Element {
           </div>
         </div>
       ) : null}
-      <button type="button" className="top-bar__settings" aria-label="Open settings">
+      <button
+        type="button"
+        className="top-bar__settings"
+        aria-label="Open settings"
+        onClick={onOpenSettings}
+      >
         <Settings size={24} strokeWidth={2.5} />
       </button>
     </header>

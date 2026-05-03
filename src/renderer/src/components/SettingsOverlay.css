@@ -1,0 +1,230 @@
+@import '../assets/base.css';
+
+.settings-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 240, 203, 0.86);
+}
+
+.settings-overlay__panel {
+  position: relative;
+  width: 310px;
+  height: 410px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid black;
+  border-radius: 15px;
+  background: var(--bg-cream);
+  box-shadow: 4px 4px 0 black;
+  overflow: hidden;
+  padding: 18px 10px 16px 18px;
+}
+
+.settings-overlay__close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: black;
+  cursor: pointer;
+  padding: 0;
+}
+
+.settings-overlay h1 {
+  flex: 0 0 auto;
+  margin: 0 8px 8px 0;
+  font-family: 'Gidugu', sans-serif;
+  font-size: 36px;
+  line-height: 32px;
+  text-align: center;
+}
+
+.settings-overlay__form {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  flex: 1 1 auto;
+  gap: 12px;
+  overflow-y: auto;
+  padding-right: 8px;
+  scrollbar-color: black transparent;
+  scrollbar-width: thin;
+}
+
+.settings-overlay__form::-webkit-scrollbar {
+  width: 5px;
+}
+
+.settings-overlay__form::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.settings-overlay__form::-webkit-scrollbar-thumb {
+  border: 1px solid black;
+  border-radius: 999px;
+  background: var(--light-orange);
+}
+
+.settings-overlay__section {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.settings-overlay h2 {
+  margin: 0;
+  font-family: 'Gidugu', sans-serif;
+  font-size: 24px;
+  line-height: 20px;
+}
+
+.settings-overlay__button,
+.settings-overlay input,
+.settings-overlay textarea {
+  border: 1px solid black;
+  border-radius: 15px;
+  background: var(--light-orange);
+  color: black;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+}
+
+.settings-overlay__button {
+  min-height: 34px;
+  cursor: pointer;
+}
+
+.settings-overlay__button:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.settings-overlay__status,
+.settings-overlay__error {
+  margin: 0;
+  color: #6b6b6b;
+  font-family: 'Inter', sans-serif;
+  font-size: 10px;
+  line-height: 12px;
+}
+
+.settings-overlay__error {
+  color: #8c2525;
+}
+
+.settings-overlay__calendars {
+  display: flex;
+  max-height: 112px;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-color: black transparent;
+  scrollbar-width: thin;
+}
+
+.settings-overlay__calendars::-webkit-scrollbar {
+  width: 5px;
+}
+
+.settings-overlay__calendars::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.settings-overlay__calendars::-webkit-scrollbar-thumb {
+  border: 1px solid black;
+  border-radius: 999px;
+  background: var(--light-orange);
+}
+
+.settings-overlay__calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #6b6b6b;
+  font-family: 'Inter', sans-serif;
+  font-size: 10px;
+  line-height: 12px;
+}
+
+.settings-overlay__text-button {
+  border: none;
+  background: transparent;
+  color: black;
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  font-size: 10px;
+  line-height: 12px;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.settings-overlay__text-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.settings-overlay__calendar-option {
+  display: grid;
+  grid-template-columns: 18px 12px 1fr;
+  align-items: center;
+  gap: 6px;
+}
+
+.settings-overlay__calendar-option input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--light-orange);
+}
+
+.settings-overlay__calendar-swatch {
+  width: 10px;
+  height: 10px;
+  border: 1px solid black;
+  border-radius: 50%;
+}
+
+.settings-overlay__calendar-name {
+  min-width: 0;
+  overflow: hidden;
+  color: black;
+  font-size: 10px;
+  line-height: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-overlay__time-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.settings-overlay label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: 'Inter', sans-serif;
+  font-size: 10px;
+  color: #6b6b6b;
+}
+
+.settings-overlay input {
+  height: 34px;
+  padding: 0 9px;
+}
+
+.settings-overlay textarea {
+  height: 86px;
+  padding: 9px;
+  resize: none;
+}

@@ -23,11 +23,48 @@ type AddTaskInput = {
   urgency: Urgency
 }
 
+type SettingsApiModel = {
+  workStart: string
+  workEnd: string
+  schedulingPreferences: string
+  includedGoogleCalendarIds: string[]
+  googleCalendarSelectionConfigured: boolean
+  googleCalendarConnected: boolean
+}
+
+type GoogleCalendarEventApiModel = {
+  id: string
+  calendarId: string
+  title: string
+  start: string
+  end: string
+}
+
+type GoogleCalendarApiModel = {
+  id: string
+  summary: string
+  primary: boolean
+  selected: boolean
+  backgroundColor: string | null
+}
+
+type SaveSettingsInput = {
+  workStart: string
+  workEnd: string
+  schedulingPreferences: string
+  includedGoogleCalendarIds: string[]
+}
+
 type AppApi = {
   getTasks: () => Promise<TaskApiModel[]>
   addTask: (data: AddTaskInput) => Promise<TaskApiModel>
   completeTask: (id: string) => Promise<TaskApiModel>
   uncompleteTask: (id: string) => Promise<TaskApiModel>
+  getSettings: () => Promise<SettingsApiModel>
+  saveSettings: (data: SaveSettingsInput) => Promise<SettingsApiModel>
+  connectGoogleCalendar: () => Promise<{ started: boolean }>
+  getGoogleCalendarEvents: () => Promise<GoogleCalendarEventApiModel[]>
+  getGoogleCalendars: () => Promise<GoogleCalendarApiModel[]>
 }
 
 declare global {
