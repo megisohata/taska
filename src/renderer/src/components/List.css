@@ -179,6 +179,16 @@
   background: var(--light-orange);
 }
 
+.list-view__empty {
+  margin-top: 18px;
+  list-style: none;
+  color: #6b6b6b;
+  font-family: 'Gidugu', sans-serif;
+  font-size: 28px;
+  line-height: 28px;
+  text-align: center;
+}
+
 .task-row {
   display: flex;
   align-items: center;

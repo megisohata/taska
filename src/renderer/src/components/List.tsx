@@ -252,7 +252,7 @@ function List(): React.JSX.Element {
 
   const total = tasks.length
   const completedCount = tasks.filter((task) => task.completed).length
-  const percent = total === 0 ? 0 : Math.round((completedCount / total) * 100)
+  const percent = total === 0 ? 100 : Math.round((completedCount / total) * 100)
 
   const dragItem = useRef<number | null>(null)
   const dragOver = useRef<number | null>(null)
@@ -319,6 +319,7 @@ function List(): React.JSX.Element {
       </div>
 
       <ul className="list-view__tasks">
+        {tasks.length === 0 ? <li className="list-view__empty">No tasks yet!</li> : null}
         {tasks.map((task, index) => (
           <li
             key={task.id}

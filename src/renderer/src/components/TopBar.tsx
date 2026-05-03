@@ -62,7 +62,7 @@ function TopBar({ showProgress = true }: TopBarProps): React.JSX.Element {
 
   const percent = useMemo(() => {
     const total = tasks.length
-    if (total === 0) return 0
+    if (total === 0) return 100
     const completed = tasks.filter((task) => task.completed).length
     return Math.round((completed / total) * 100)
   }, [tasks])
