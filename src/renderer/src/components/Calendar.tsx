@@ -123,11 +123,11 @@ function formatHour(totalMinutes: number): string {
 }
 
 function buildHourTicks(items: CalendarItem[]): HourTick[] {
+  if (items.length === 0) return []
+
   const lastEnd =
-    items.length === 0
-      ? VISIBLE_START_MINUTES
-      : VISIBLE_START_MINUTES +
-        Math.max(...items.map((item) => item.blockTop + item.blockHeight)) / PX_PER_MINUTE
+    VISIBLE_START_MINUTES +
+    Math.max(...items.map((item) => item.blockTop + item.blockHeight)) / PX_PER_MINUTE
   const finalHour = Math.max(VISIBLE_START_MINUTES, Math.floor(lastEnd / 60) * 60)
   const ticks: HourTick[] = []
 
@@ -271,6 +271,9 @@ function Calendar(): React.JSX.Element {
         </div>
 
         <ul className="calendar-view__tasks">
+          {calendarItems.length === 0 ? (
+            <li className="calendar-view__empty">No tasks yet!</li>
+          ) : null}
           {calendarItems.map((task) => (
             <li
               key={task.id}

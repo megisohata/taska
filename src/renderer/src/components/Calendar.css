@@ -84,9 +84,23 @@
   position: absolute;
   top: 12px;
   left: 0;
+  width: 100%;
   list-style: none;
   margin: 0;
   padding: 0;
+}
+
+.calendar-view__empty {
+  position: absolute;
+  top: 144px;
+  left: 0;
+  width: 316px;
+  color: #6b6b6b;
+  font-family: 'Gidugu', sans-serif;
+  font-size: 28px;
+  line-height: 28px;
+  list-style: none;
+  text-align: center;
 }
 
 .calendar-task {
