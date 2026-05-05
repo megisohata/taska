@@ -6,12 +6,14 @@ import {
   getSetting,
   getTaskById,
   insertTask,
+  reorderOpenTasks,
   saveGoogleTokens,
   setTaskCompleted,
   setSetting,
   setTaskScheduled,
   type GoogleTokenSet,
   type NewTask,
+  type PreferredPeriod,
   type Task
 } from './db'
 
@@ -42,7 +44,7 @@ export type GoogleCalendarSummary = {
 
 type OpenAIEstimate = {
   estimatedMinutes: number
-  preferredPeriod: 'morning' | 'afternoon' | 'any'
+  preferredPeriod: PreferredPeriod
 }
 
 type BusyInterval = {
@@ -90,7 +92,8 @@ const DEFAULT_MODEL = 'gpt-5.4-mini'
 const MIN_DURATION = 15
 const MAX_DURATION = 240
 const MAX_ACTUAL_DURATION = 480
-const TASKA_CALENDAR_SUMMARY = 'Taska'
+const TASKA_CALENDAR_SUMMARY = 'DockIt'
+const LEGACY_TASKA_CALENDAR_SUMMARY = 'Taska'
 
 function parseTime(value: string): { hours: number; minutes: number } {
   const [hours = '9', minutes = '0'] = value.split(':')
@@ -121,6 +124,10 @@ function startOfNextLocalDay(base: Date): Date {
   const next = startOfLocalDay(base)
   next.setDate(next.getDate() + 1)
   return next
+}
+
+function isSameLocalDay(a: Date, b: Date): boolean {
+  return startOfLocalDay(a).getTime() === startOfLocalDay(b).getTime()
 }
 
 function clampDuration(value: number): number {
@@ -172,6 +179,39 @@ function extractJsonObject(value: string): unknown {
   return JSON.parse(value.slice(start, end + 1)) as unknown
 }
 
+type OpenAIResponseContent = {
+  type?: string
+  text?: string
+}
+
+type OpenAIResponseOutputItem = {
+  type?: string
+  content?: OpenAIResponseContent[]
+}
+
+type OpenAIResponseJson = {
+  output_text?: string
+  output?: OpenAIResponseOutputItem[]
+  error?: {
+    message?: string
+  }
+}
+
+function getOpenAIResponseText(json: OpenAIResponseJson): string {
+  if (typeof json.output_text === 'string' && json.output_text.trim().length > 0) {
+    return json.output_text
+  }
+
+  const textParts =
+    json.output
+      ?.flatMap((item) => item.content ?? [])
+      .map((content) => content.text)
+      .filter((text): text is string => typeof text === 'string' && text.trim().length > 0) ?? []
+
+  if (textParts.length > 0) return textParts.join('\n')
+  throw new Error('Model did not return text.')
+}
+
 function parseEstimate(value: unknown): OpenAIEstimate {
   const record = value as Partial<OpenAIEstimate>
   const preferredPeriod =
@@ -187,56 +227,7 @@ function parseEstimate(value: unknown): OpenAIEstimate {
   }
 }
 
-function extractExplicitDuration(task: NewTask): number | null {
-  const text = `${task.context ?? ''} ${task.title}`.toLowerCase()
-  let minutes = 0
-  let matched = false
-  const consumedRanges: Array<[number, number]> = []
-  const rangePattern =
-    /(\d+(?:\.\d+)?)\s*(?:-|to)\s*(\d+(?:\.\d+)?)\s*(hours?|hrs?|hr|h|minutes?|mins?|min|m)\b/g
-
-  for (const match of text.matchAll(rangePattern)) {
-    if (match.index === undefined) continue
-    const [, , highValue, unit] = match
-    const numericValue = Number.parseFloat(highValue)
-    if (!Number.isFinite(numericValue)) continue
-
-    consumedRanges.push([match.index, match.index + match[0].length])
-    minutes += unit.startsWith('h') ? numericValue * 60 : numericValue
-    matched = true
-  }
-
-  const unitPattern = /(\d+(?:\.\d+)?)\s*(hours?|hrs?|hr|h|minutes?|mins?|min|m)\b/g
-  for (const match of text.matchAll(unitPattern)) {
-    if (
-      match.index !== undefined &&
-      consumedRanges.some(
-        ([start, end]) => match.index !== undefined && match.index >= start && match.index < end
-      )
-    ) {
-      continue
-    }
-
-    const [, rawValue, unit] = match
-    const numericValue = Number.parseFloat(rawValue)
-    if (!Number.isFinite(numericValue)) continue
-
-    minutes += unit.startsWith('h') ? numericValue * 60 : numericValue
-    matched = true
-  }
-
-  return matched ? clampDuration(minutes) : null
-}
-
 function fallbackEstimate(task: NewTask): OpenAIEstimate {
-  const explicitDuration = extractExplicitDuration(task)
-  if (explicitDuration !== null) {
-    return {
-      estimatedMinutes: explicitDuration,
-      preferredPeriod: 'any'
-    }
-  }
-
   const text = `${task.title} ${task.context ?? ''}`.toLowerCase()
   let estimatedMinutes = 30
 
@@ -255,14 +246,6 @@ function fallbackEstimate(task: NewTask): OpenAIEstimate {
 }
 
 async function estimateTaskWithOpenAI(task: NewTask): Promise<OpenAIEstimate> {
-  const explicitDuration = extractExplicitDuration(task)
-  if (explicitDuration !== null) {
-    return {
-      estimatedMinutes: explicitDuration,
-      preferredPeriod: 'any'
-    }
-  }
-
   const apiKey = process.env['OPENAI_API_KEY']
   if (!apiKey) return fallbackEstimate(task)
 
@@ -277,11 +260,34 @@ async function estimateTaskWithOpenAI(task: NewTask): Promise<OpenAIEstimate> {
     },
     body: JSON.stringify({
       model,
+      text: {
+        format: {
+          type: 'json_schema',
+          name: 'task_estimate',
+          strict: true,
+          schema: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              estimatedMinutes: {
+                type: 'number',
+                description:
+                  'The total estimated duration in minutes before rounding to the nearest 15.'
+              },
+              preferredPeriod: {
+                type: 'string',
+                enum: ['morning', 'afternoon', 'any']
+              }
+            },
+            required: ['estimatedMinutes', 'preferredPeriod']
+          }
+        }
+      },
       input: [
         {
           role: 'system',
           content:
-            'Estimate task scheduling metadata. Return only JSON with estimatedMinutes (number) and preferredPeriod ("morning", "afternoon", or "any").'
+            'Estimate task scheduling metadata for a daily planner. Return only JSON with estimatedMinutes (number) and preferredPeriod ("morning", "afternoon", or "any"). Use the task title, description/context, user scheduling preferences, and recent completed task history. Pay careful attention to any explicit or implicit duration clues in the user text, including estimates, ranges, repeated work, quantities, per-item times, and math such as "10 lectures, 15 minutes each"; compute the total duration before returning. If the user directly gives a duration or gives enough information to calculate one, use that result. Otherwise infer from comparable past tasks and the task type. Prefer the user’s preferred work periods when they are relevant. estimatedMinutes should be the final total in minutes before the app rounds it up to the nearest 15.'
         },
         {
           role: 'user',
@@ -299,11 +305,14 @@ async function estimateTaskWithOpenAI(task: NewTask): Promise<OpenAIEstimate> {
     })
   })
 
-  if (!response.ok) return fallbackEstimate(task)
+  const json = (await response.json()) as OpenAIResponseJson
 
-  const json = (await response.json()) as { output_text?: string; output?: unknown }
-  const outputText =
-    json.output_text ?? JSON.stringify(json.output).replace(/\\n/g, '\n').replace(/\\"/g, '"')
+  if (!response.ok) {
+    console.warn('OpenAI estimate failed:', json.error?.message ?? response.statusText)
+    return fallbackEstimate(task)
+  }
+
+  const outputText = getOpenAIResponseText(json)
 
   return parseEstimate(extractJsonObject(outputText))
 }
@@ -370,15 +379,23 @@ function getGoogleCalendarId(): string {
 
 async function ensureTaskaGoogleCalendarId(secrets: SchedulerSecrets): Promise<string | null> {
   const savedCalendarId = getSetting('calendarId')?.trim()
-  if (savedCalendarId) return savedCalendarId
+  if (savedCalendarId) {
+    await updateGoogleCalendarSummary(savedCalendarId, TASKA_CALENDAR_SUMMARY, secrets)
+    return savedCalendarId
+  }
 
   const accessToken = await getGoogleAccessToken(secrets)
   if (!accessToken) return null
 
   const calendars = await getRawGoogleCalendars(secrets)
-  const existing = calendars.find((calendar) => calendar.summary === TASKA_CALENDAR_SUMMARY)
+  const existing = calendars.find(
+    (calendar) =>
+      calendar.summary === TASKA_CALENDAR_SUMMARY ||
+      calendar.summary === LEGACY_TASKA_CALENDAR_SUMMARY
+  )
   if (existing) {
     setSetting('calendarId', existing.id)
+    await updateGoogleCalendarSummary(existing.id, TASKA_CALENDAR_SUMMARY, secrets)
     return existing.id
   }
 
@@ -400,6 +417,27 @@ async function ensureTaskaGoogleCalendarId(secrets: SchedulerSecrets): Promise<s
 
   setSetting('calendarId', json.id)
   return json.id
+}
+
+async function updateGoogleCalendarSummary(
+  calendarId: string,
+  summary: string,
+  secrets: SchedulerSecrets
+): Promise<void> {
+  const accessToken = await getGoogleAccessToken(secrets)
+  if (!accessToken) return
+
+  await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}`,
+    {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ summary })
+    }
+  )
 }
 
 function getGoogleCalendarEventsUrl(calendarId: string): string {
@@ -583,7 +621,11 @@ async function updateGoogleCalendarEvent(
   )
 
   if (response.ok) return task.googleCalendarEventId
-  return createGoogleCalendarEvent(task, start, end, secrets)
+  if (response.status === 404 || response.status === 410) {
+    return createGoogleCalendarEvent(task, start, end, secrets)
+  }
+
+  return task.googleCalendarEventId
 }
 
 async function deleteGoogleCalendarEvent(
@@ -653,15 +695,6 @@ export async function withRequiredTaskaCalendar(
   return mergeRequiredTaskaCalendarId(calendarIds, await ensureTaskaGoogleCalendarId(secrets))
 }
 
-function getLocalBusyIntervals(): BusyInterval[] {
-  return getAllTasks()
-    .filter((task) => task.scheduledStart !== null && task.scheduledEnd !== null && !task.completed)
-    .map((task) => ({
-      start: new Date(task.scheduledStart as string),
-      end: new Date(task.scheduledEnd as string)
-    }))
-}
-
 function getSchedulingWindow(day = new Date(), fromNow = true): { timeMin: Date; timeMax: Date } {
   const settings = getSchedulerSettings()
   const now = new Date()
@@ -689,6 +722,7 @@ function findFreeSlot(
   const slotStepMinutes = 15
   const workStart = setTime(day, settings.workStart)
   const workEnd = setTime(day, settings.workEnd)
+  let periodEnd = workEnd
 
   let cursor = fromNow ? new Date(Math.max(workStart.getTime(), now.getTime())) : workStart
   cursor.setMinutes(Math.ceil(cursor.getMinutes() / slotStepMinutes) * slotStepMinutes, 0, 0)
@@ -696,13 +730,14 @@ function findFreeSlot(
   if (preferredPeriod === 'morning') {
     const noon = setTime(day, '12:00')
     if (cursor >= noon) return null
+    periodEnd = new Date(Math.min(workEnd.getTime(), noon.getTime()))
   }
 
   if (preferredPeriod === 'afternoon') {
     cursor = new Date(Math.max(cursor.getTime(), setTime(day, '12:00').getTime()))
   }
 
-  while (addMinutes(cursor, durationMinutes) <= workEnd) {
+  while (addMinutes(cursor, durationMinutes) <= periodEnd) {
     const end = addMinutes(cursor, durationMinutes)
     const conflicts = busyIntervals.some((interval) =>
       overlaps(cursor, end, interval.start, interval.end)
@@ -715,19 +750,47 @@ function findFreeSlot(
   return null
 }
 
-function sortOpenTasksForScheduling(tasks: Task[]): Task[] {
+function findBestSlot(
+  durationMinutes: number,
+  preferredPeriod: PreferredPeriod,
+  busyIntervals: BusyInterval[],
+  day = new Date(),
+  fromNow = true
+): { start: Date; end: Date } | null {
+  const preferredSlot = findFreeSlot(durationMinutes, preferredPeriod, busyIntervals, day, fromNow)
+  if (preferredSlot || preferredPeriod === 'any') return preferredSlot
+  return findFreeSlot(durationMinutes, 'any', busyIntervals, day, fromNow)
+}
+
+function sortOpenTasksForScheduling(tasks: Task[], explicitOrderIds?: string[]): Task[] {
+  const explicitOrder = explicitOrderIds
+    ? new Map(explicitOrderIds.map((id, index) => [id, index]))
+    : null
+
   return [...tasks]
     .filter((task) => !task.completed)
     .sort((a, b) => {
+      if (explicitOrder) {
+        const orderA = explicitOrder.get(a.id)
+        const orderB = explicitOrder.get(b.id)
+        if (orderA !== undefined && orderB !== undefined) return orderA - orderB
+        if (orderA !== undefined) return -1
+        if (orderB !== undefined) return 1
+      }
+
+      const urgencyRank = { high: 0, med: 1, low: 2 } as const
+      const urgencyDelta = urgencyRank[a.urgency] - urgencyRank[b.urgency]
+      if (urgencyDelta !== 0) return urgencyDelta
+
+      const preferredRank = { morning: 0, any: 1, afternoon: 2 } as const
+      const preferredDelta = preferredRank[a.preferredPeriod] - preferredRank[b.preferredPeriod]
+      if (preferredDelta !== 0) return preferredDelta
+
       if (a.scheduledStart && b.scheduledStart) {
         return new Date(a.scheduledStart).getTime() - new Date(b.scheduledStart).getTime()
       }
       if (a.scheduledStart) return -1
       if (b.scheduledStart) return 1
-
-      const urgencyRank = { high: 0, med: 1, low: 2 } as const
-      const urgencyDelta = urgencyRank[a.urgency] - urgencyRank[b.urgency]
-      if (urgencyDelta !== 0) return urgencyDelta
 
       const orderA = a.manualOrder ?? Number.MAX_SAFE_INTEGER
       const orderB = b.manualOrder ?? Number.MAX_SAFE_INTEGER
@@ -764,9 +827,19 @@ async function syncTaskGoogleEvent(
 async function rescheduleOpenTasks(
   secrets: SchedulerSecrets,
   day = new Date(),
-  fromNow = true
+  fromNow = true,
+  includeAllOpenTasks = false,
+  explicitOrderIds?: string[]
 ): Promise<void> {
-  const openTasks = sortOpenTasksForScheduling(getAllTasks())
+  const openTasks = sortOpenTasksForScheduling(
+    getAllTasks().filter((task) => {
+      if (task.completed) return false
+      if (includeAllOpenTasks) return true
+      if (!task.scheduledStart) return true
+      return isSameLocalDay(new Date(task.scheduledStart), day)
+    }),
+    explicitOrderIds
+  )
   const taskGoogleEventIds = new Set(
     openTasks
       .map((task) => task.googleCalendarEventId)
@@ -782,7 +855,13 @@ async function rescheduleOpenTasks(
   }
 
   for (const task of openTasks) {
-    const slot = findFreeSlot(task.estimatedMinutes, 'any', busyIntervals, day, fromNow)
+    const slot = findBestSlot(
+      task.estimatedMinutes,
+      task.preferredPeriod,
+      busyIntervals,
+      day,
+      fromNow
+    )
     let googleEventId: string | null = task.googleCalendarEventId
 
     try {
@@ -811,31 +890,14 @@ export async function createScheduledTask(
   } catch {
     estimate = fallbackEstimate(input)
   }
-  const { timeMin, timeMax } = getSchedulingWindow()
 
-  let googleBusy: BusyInterval[] = []
-  try {
-    googleBusy = await getGoogleBusyIntervals(timeMin, timeMax, secrets)
-  } catch {
-    googleBusy = []
-  }
-  const localBusy = getLocalBusyIntervals()
-  const slot = findFreeSlot(estimate.estimatedMinutes, estimate.preferredPeriod, [
-    ...googleBusy,
-    ...localBusy
-  ])
-  const task = insertTask({ ...input, estimatedMinutes: estimate.estimatedMinutes })
-
-  if (!slot) return task
-
-  let googleEventId: string | null = null
-  try {
-    googleEventId = await createGoogleCalendarEvent(task, slot.start, slot.end, secrets)
-  } catch {
-    googleEventId = null
-  }
-
-  return setTaskScheduled(task.id, slot.start.toISOString(), slot.end.toISOString(), googleEventId)
+  const task = insertTask({
+    ...input,
+    estimatedMinutes: estimate.estimatedMinutes,
+    preferredPeriod: estimate.preferredPeriod
+  })
+  await rescheduleOpenTasks(secrets)
+  return getTaskById(task.id)
 }
 
 export async function completeTaskAndRefreshSchedule(
@@ -867,21 +929,21 @@ export async function completeTaskAndRefreshSchedule(
   return getTaskById(id)
 }
 
-export async function uncompleteTaskAndRefreshSchedule(
-  id: string,
-  secrets: SchedulerSecrets
-): Promise<Task> {
-  setTaskCompleted(id, false)
-  await rescheduleOpenTasks(secrets)
-  return getTaskById(id)
-}
-
 export async function rescheduleUnfinishedTasksToTomorrow(
   secrets: SchedulerSecrets
 ): Promise<Task[]> {
   const tomorrow = new Date()
   tomorrow.setDate(tomorrow.getDate() + 1)
-  await rescheduleOpenTasks(secrets, tomorrow, false)
+  await rescheduleOpenTasks(secrets, tomorrow, false, true)
+  return getAllTasks()
+}
+
+export async function reorderTasksAndRefreshSchedule(
+  orderedIds: string[],
+  secrets: SchedulerSecrets
+): Promise<Task[]> {
+  reorderOpenTasks(orderedIds)
+  await rescheduleOpenTasks(secrets, new Date(), true, false, orderedIds)
   return getAllTasks()
 }
 

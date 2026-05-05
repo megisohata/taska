@@ -235,26 +235,37 @@ function ProgressArc({ percent }: { percent: number }): React.JSX.Element {
 
 function List(): React.JSX.Element {
   const [tasks, setTasks] = useState<Task[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [rescheduling, setRescheduling] = useState(false)
 
-  async function loadTasks(): Promise<void> {
-    const data = await window.api.getTasks()
-    setTasks(data.map(mapTask))
+  async function loadTasks(showLoading = false): Promise<void> {
+    if (showLoading) setIsLoading(true)
+    try {
+      const data = await window.api.getTasks()
+      setTasks(data.map(mapTask))
+    } catch {
+      setTasks([])
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   useEffect(() => {
     let cancelled = false
 
     async function loadInitialTasks(): Promise<void> {
+      setIsLoading(true)
       try {
         const data = await window.api.getTasks()
 
         if (!cancelled) {
           setTasks(data.map(mapTask))
+          setIsLoading(false)
         }
       } catch {
         if (!cancelled) {
           setTasks([])
+          setIsLoading(false)
         }
       }
     }
@@ -283,7 +294,8 @@ function List(): React.JSX.Element {
     dragItem.current = index
   }
 
-  function handleDragEnter(index: number): void {
+  function handleDragEnter(index: number, canDrop: boolean): void {
+    if (!canDrop) return
     dragOver.current = index
     if (dragItem.current === null || dragItem.current === index) return
     const from = dragItem.current
@@ -296,19 +308,29 @@ function List(): React.JSX.Element {
     })
   }
 
-  function handleDragEnd(): void {
+  async function handleDragEnd(): Promise<void> {
+    const didMove = dragItem.current !== null && dragOver.current !== null
     dragItem.current = null
     dragOver.current = null
+
+    if (!didMove) return
+
+    const orderedIds = tasks.filter((task) => !task.completed).map((task) => task.id)
+    try {
+      const data = await window.api.reorderTasks(orderedIds)
+      setTasks(data.map(mapTask))
+      window.dispatchEvent(new Event('tasks:changed'))
+    } catch {
+      await loadTasks(true)
+    }
   }
 
   async function toggleTask(id: string): Promise<void> {
     const current = tasks.find((task) => task.id === id)
-    if (!current) return
+    if (!current || current.completed) return
 
     try {
-      const updated = current.completed
-        ? await window.api.uncompleteTask(id)
-        : await window.api.completeTask(id)
+      const updated = await window.api.completeTask(id)
 
       setTasks((prev) => prev.map((task) => (task.id === id ? mapTask(updated) : task)))
       window.dispatchEvent(new Event('tasks:changed'))
@@ -321,6 +343,7 @@ function List(): React.JSX.Element {
   const scheduledTasks = tasks.filter((task) => task.scheduledStart !== null)
   const unscheduledTasks = tasks.filter((task) => task.scheduledStart === null)
   const unfinishedTasks = tasks.filter((task) => !task.completed)
+  const orderedTasks = [...scheduledTasks, ...unscheduledTasks]
 
   async function handleRescheduleTomorrow(): Promise<void> {
     setRescheduling(true)
@@ -341,10 +364,10 @@ function List(): React.JSX.Element {
       <li
         key={task.id}
         className={`task-row ${task.completed ? 'task-row--done' : ''}`}
-        draggable
+        draggable={!task.completed}
         onDragStart={() => handleDragStart(index)}
-        onDragEnter={() => handleDragEnter(index)}
-        onDragEnd={handleDragEnd}
+        onDragEnter={() => handleDragEnter(index, !task.completed)}
+        onDragEnd={() => void handleDragEnd()}
         onDragOver={(e) => e.preventDefault()}
       >
         <img src={hamburger} alt="" className="task-row__handle" draggable={false} />
@@ -352,12 +375,8 @@ function List(): React.JSX.Element {
           <span className="task-row__title-text">{task.title}</span>
         </span>
         <span className="task-row__time">{task.estimatedMinutes} min</span>
-        <button
-          className="task-row__checkbox"
-          onClick={() => void toggleTask(task.id)}
-          aria-label={task.completed ? 'Mark incomplete' : 'Mark complete'}
-        >
-          {task.completed ? (
+        {task.completed ? (
+          <span className="task-row__checkbox task-row__checkbox--locked">
             <svg width="18" height="18" viewBox="0 0 18 18">
               <circle cx="9" cy="9" r="8" fill="#C5EF00" stroke="#000000" strokeWidth="1.5" />
               <path
@@ -370,12 +389,18 @@ function List(): React.JSX.Element {
                 className="checkmark-path"
               />
             </svg>
-          ) : (
+          </span>
+        ) : (
+          <button
+            className="task-row__checkbox"
+            onClick={() => void toggleTask(task.id)}
+            aria-label="Mark complete"
+          >
             <svg width="18" height="18" viewBox="0 0 18 18">
               <circle cx="9" cy="9" r="8" fill="#FFF0CB" stroke="#000000" strokeWidth="1.5" />
             </svg>
-          )}
-        </button>
+          </button>
+        )}
       </li>
     )
   }
@@ -393,7 +418,9 @@ function List(): React.JSX.Element {
       </div>
 
       <ul className="list-view__tasks">
-        {tasks.length === 0 ? <li className="list-view__empty">No tasks yet!</li> : null}
+        {tasks.length === 0 ? (
+          <li className="list-view__empty">{isLoading ? 'Loading...' : 'No tasks yet!'}</li>
+        ) : null}
         {unfinishedTasks.length > 0 ? (
           <li className="list-view__action-row">
             <button
@@ -406,11 +433,11 @@ function List(): React.JSX.Element {
             </button>
           </li>
         ) : null}
-        {scheduledTasks.map((task) => renderTaskRow(task, tasks.indexOf(task)))}
+        {scheduledTasks.map((task) => renderTaskRow(task, orderedTasks.indexOf(task)))}
         {unscheduledTasks.length > 0 ? (
           <li className="list-view__section-heading">Unscheduled Tasks</li>
         ) : null}
-        {unscheduledTasks.map((task) => renderTaskRow(task, tasks.indexOf(task)))}
+        {unscheduledTasks.map((task) => renderTaskRow(task, orderedTasks.indexOf(task)))}
       </ul>
     </div>
   )

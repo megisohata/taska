@@ -20,8 +20,8 @@ import {
   createScheduledTask,
   getGoogleCalendars,
   getVisibleGoogleCalendarEvents,
+  reorderTasksAndRefreshSchedule,
   rescheduleUnfinishedTasksToTomorrow,
-  uncompleteTaskAndRefreshSchedule,
   withRequiredTaskaCalendar
 } from './scheduler'
 
@@ -172,7 +172,7 @@ function ensureGoogleOAuthCallbackServer(): void {
         res,
         200,
         'Google Calendar connected',
-        'You can close this window and return to Taska.'
+        'You can close this window and return to DockIt.'
       )
     } catch (error) {
       sendOAuthHtml(
@@ -200,8 +200,8 @@ function registerTaskIpcHandlers(): void {
     return completeTaskAndRefreshSchedule(id, { protectSecret, revealSecret })
   })
 
-  ipcMain.handle('tasks:uncomplete', async (_, id: string) => {
-    return uncompleteTaskAndRefreshSchedule(id, { protectSecret, revealSecret })
+  ipcMain.handle('tasks:reorder', async (_, orderedIds: string[]) => {
+    return reorderTasksAndRefreshSchedule(orderedIds, { protectSecret, revealSecret })
   })
 
   ipcMain.handle('tasks:rescheduleTomorrow', async () => {

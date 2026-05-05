@@ -334,6 +334,10 @@
   z-index: 1;
 }
 
+.task-row__checkbox--locked {
+  cursor: default;
+}
+
 .checkmark-path {
   stroke-dasharray: 20;
   stroke-dashoffset: 0;

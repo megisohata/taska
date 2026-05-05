@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from 'uuid'
 // Types
 
 export type Urgency = 'low' | 'med' | 'high'
+export type PreferredPeriod = 'morning' | 'afternoon' | 'any'
 
 export type Task = {
   id: string
@@ -13,6 +14,7 @@ export type Task = {
   context: string | null
   urgency: Urgency
   estimatedMinutes: number
+  preferredPeriod: PreferredPeriod
   scheduledStart: string | null
   scheduledEnd: string | null
   googleCalendarEventId: string | null
@@ -28,9 +30,11 @@ export type NewTask = {
   context?: string
   urgency: Urgency
   estimatedMinutes?: number
+  preferredPeriod?: PreferredPeriod
 }
 
 const VALID_URGENCIES = ['low', 'med', 'high'] as const
+const VALID_PREFERRED_PERIODS = ['morning', 'afternoon', 'any'] as const
 
 export type Setting = {
   key: string
@@ -66,6 +70,7 @@ type TaskRow = {
   context: string | null
   urgency: string
   estimated_minutes: number
+  preferred_period: string | null
   scheduled_start: string | null
   scheduled_end: string | null
   google_event_id: string | null
@@ -87,6 +92,12 @@ function ensureDatabase(): Database.Database {
   return db
 }
 
+function normalizePreferredPeriod(value: string | null | undefined): PreferredPeriod {
+  return VALID_PREFERRED_PERIODS.includes(value as PreferredPeriod)
+    ? (value as PreferredPeriod)
+    : 'any'
+}
+
 // Row mapper
 
 function mapTaskRow(row: TaskRow): Task {
@@ -96,6 +107,7 @@ function mapTaskRow(row: TaskRow): Task {
     context: row.context,
     urgency: row.urgency as Urgency,
     estimatedMinutes: row.estimated_minutes,
+    preferredPeriod: normalizePreferredPeriod(row.preferred_period),
     scheduledStart: row.scheduled_start,
     scheduledEnd: row.scheduled_end,
     googleCalendarEventId: row.google_event_id,
@@ -126,6 +138,7 @@ export function initDatabase(basePath: string): Database.Database {
       context           TEXT,
       urgency           TEXT NOT NULL DEFAULT 'med' CHECK (urgency IN ('low', 'med', 'high')),
       estimated_minutes INTEGER NOT NULL DEFAULT 30,
+      preferred_period  TEXT NOT NULL DEFAULT 'any' CHECK (preferred_period IN ('morning', 'afternoon', 'any')),
       scheduled_start   TEXT,
       scheduled_end     TEXT,
       google_event_id   TEXT,
@@ -165,6 +178,14 @@ function migrateTasksTable(): void {
   if (!columnNames.has('actual_minutes')) {
     database.prepare('ALTER TABLE tasks ADD COLUMN actual_minutes INTEGER').run()
   }
+
+  if (!columnNames.has('preferred_period')) {
+    database
+      .prepare(
+        "ALTER TABLE tasks ADD COLUMN preferred_period TEXT NOT NULL DEFAULT 'any' CHECK (preferred_period IN ('morning', 'afternoon', 'any'))"
+      )
+      .run()
+  }
 }
 
 // Default settings
@@ -199,7 +220,7 @@ function seedDefaultSettings(): void {
 const TASK_SELECT = `
   SELECT
     id, title, context, urgency,
-    estimated_minutes, scheduled_start, scheduled_end,
+    estimated_minutes, preferred_period, scheduled_start, scheduled_end,
     google_event_id, actual_minutes, completed, completed_at, manual_order, created_at
   FROM tasks
 `
@@ -257,15 +278,16 @@ export function insertTask(input: NewTask): Task {
     typeof input.estimatedMinutes === 'number' && input.estimatedMinutes > 0
       ? Math.round(input.estimatedMinutes)
       : 30
+  const preferredPeriod = normalizePreferredPeriod(input.preferredPeriod)
 
   database
     .prepare(
       `
-    INSERT INTO tasks (id, title, context, urgency, estimated_minutes, created_at)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO tasks (id, title, context, urgency, estimated_minutes, preferred_period, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `
     )
-    .run(id, input.title, input.context ?? null, urgency, estimatedMinutes, now)
+    .run(id, input.title, input.context ?? null, urgency, estimatedMinutes, preferredPeriod, now)
 
   return getTaskById(id)
 }
@@ -310,10 +332,14 @@ export function setTaskCompleted(
   return getTaskById(id)
 }
 
-export function reorderUnscheduledTasks(orderedIds: string[]): void {
+export function reorderOpenTasks(orderedIds: string[]): void {
   const database = ensureDatabase()
   const update = database.prepare('UPDATE tasks SET manual_order = ? WHERE id = ?')
+  const resetOpenTasks = database.prepare(
+    'UPDATE tasks SET manual_order = NULL WHERE completed = 0'
+  )
   const transaction = database.transaction((ids: string[]) => {
+    resetOpenTasks.run()
     ids.forEach((id, index) => update.run(index, id))
   })
   transaction(orderedIds)

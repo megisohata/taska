@@ -223,7 +223,7 @@ function SettingsOverlay({ onClose }: SettingsOverlayProps): React.JSX.Element {
                       aria-hidden="true"
                     />
                     <span className="settings-overlay__calendar-name">
-                      {calendar.summary}
+                      {calendar.isTaska ? 'DockIt' : calendar.summary}
                       {calendar.primary ? ' (Primary)' : ''}
                       {calendar.isTaska ? ' (Required)' : ''}
                     </span>

@@ -1,6 +1,7 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
 
 type Urgency = 'low' | 'med' | 'high'
+type PreferredPeriod = 'morning' | 'afternoon' | 'any'
 
 type TaskApiModel = {
   id: string
@@ -8,6 +9,7 @@ type TaskApiModel = {
   context: string | null
   urgency: Urgency
   estimatedMinutes: number
+  preferredPeriod: PreferredPeriod
   scheduledStart: string | null
   scheduledEnd: string | null
   googleCalendarEventId: string | null
@@ -61,7 +63,7 @@ type AppApi = {
   getTasks: () => Promise<TaskApiModel[]>
   addTask: (data: AddTaskInput) => Promise<TaskApiModel>
   completeTask: (id: string) => Promise<TaskApiModel>
-  uncompleteTask: (id: string) => Promise<TaskApiModel>
+  reorderTasks: (orderedIds: string[]) => Promise<TaskApiModel[]>
   rescheduleTomorrow: () => Promise<TaskApiModel[]>
   getSettings: () => Promise<SettingsApiModel>
   saveSettings: (data: SaveSettingsInput) => Promise<SettingsApiModel>

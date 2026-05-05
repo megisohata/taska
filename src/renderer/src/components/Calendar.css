@@ -49,7 +49,7 @@
   border-radius: 999px;
   background: var(--event-color, var(--light-orange));
   transition: transform 180ms ease;
-  z-index: 1;
+  z-index: 2;
 }
 
 .calendar-view__connector {
@@ -63,7 +63,7 @@
     var(--connector-start, var(--orange)) 0%,
     var(--connector-end, var(--pink)) 100%
   );
-  z-index: 2;
+  z-index: 1;
 }
 
 .calendar-view__hours {
@@ -202,4 +202,8 @@
   position: relative;
   z-index: 1;
   display: block;
+}
+
+.calendar-task__checkbox--locked {
+  cursor: default;
 }

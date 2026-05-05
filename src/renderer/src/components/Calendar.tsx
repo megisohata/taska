@@ -32,6 +32,8 @@ type CalendarItem = {
   blockHeight: number
   durationMinutes: number
   color: string
+  connectsPrevious: boolean
+  connectsNext: boolean
 }
 
 type CalendarConnector = {
@@ -40,6 +42,7 @@ type CalendarConnector = {
   height: number
   fromColor: string
   toColor: string
+  hasGap: boolean
 }
 
 type HourTick = {
@@ -48,10 +51,11 @@ type HourTick = {
 }
 
 const TASKS_CHANGED_EVENT = 'tasks:changed'
-const VISIBLE_START_MINUTES = 11 * 60
+const DEFAULT_VISIBLE_START_MINUTES = 11 * 60
 const PX_PER_MINUTE = 70 / 60
 const FALLBACK_STARTS = [0, 67, 118, 223, 250, 282]
 const EVENT_COLORS = ['#FFB23E', '#FFA1CA', '#BB89C7', '#8DEAFF', '#C5EF00']
+const CONNECTED_GAP_PX = 2
 
 function minutesFromDate(value: string): number {
   const date = new Date(value)
@@ -101,14 +105,40 @@ function getDurationMinutes(item: {
   return item.estimatedMinutes
 }
 
-function buildCalendarItems(
+function getVisibleStartMinutes(
   tasks: Task[],
   externalEvents: ExternalCalendarEvent[],
   visibleDay: Date
+): number {
+  const taskStarts = tasks
+    .filter(
+      (task) =>
+        !task.completed &&
+        task.scheduledStart !== null &&
+        isSameLocalDay(task.scheduledStart, visibleDay)
+    )
+    .map((task) => minutesFromDate(task.scheduledStart as string))
+  const eventStarts = externalEvents
+    .filter((event) => isSameLocalDay(event.start, visibleDay))
+    .map((event) => minutesFromDate(event.start))
+  const starts = [...taskStarts, ...eventStarts]
+
+  if (starts.length === 0) return DEFAULT_VISIBLE_START_MINUTES
+  return Math.floor(Math.min(...starts) / 60) * 60
+}
+
+function buildCalendarItems(
+  tasks: Task[],
+  externalEvents: ExternalCalendarEvent[],
+  visibleDay: Date,
+  visibleStartMinutes: number
 ): CalendarItem[] {
   const taskItems = tasks
     .filter(
-      (task) => task.scheduledStart !== null && isSameLocalDay(task.scheduledStart, visibleDay)
+      (task) =>
+        !task.completed &&
+        task.scheduledStart !== null &&
+        isSameLocalDay(task.scheduledStart, visibleDay)
     )
     .map((task) => ({
       id: task.id,
@@ -136,12 +166,12 @@ function buildCalendarItems(
       source: 'google' as const
     }))
 
-  return [...taskItems, ...googleItems]
+  const orderedItems = [...taskItems, ...googleItems]
     .map((item, index) => {
       const scheduledTop =
         item.scheduledStart === null
           ? (FALLBACK_STARTS[index] ?? index * 52)
-          : (minutesFromDate(item.scheduledStart) - VISIBLE_START_MINUTES) * PX_PER_MINUTE
+          : (minutesFromDate(item.scheduledStart) - visibleStartMinutes) * PX_PER_MINUTE
       const top = Math.max(0, Math.round(scheduledTop))
       const durationMinutes = getDurationMinutes(item)
       const blockHeight = clamp(Math.round(durationMinutes * PX_PER_MINUTE), 19, 120)
@@ -152,6 +182,8 @@ function buildCalendarItems(
         blockTop: top,
         blockHeight,
         durationMinutes,
+        connectsPrevious: false,
+        connectsNext: false,
         color:
           item.source === 'google'
             ? '#FFD98A'
@@ -171,6 +203,30 @@ function buildCalendarItems(
         color: EVENT_COLORS[nextColorIndex]
       }
     })
+    .map((task, index, orderedTasks) => {
+      if (index === 0) return task
+      const previous = orderedTasks[index - 1]
+      return {
+        ...task,
+        top: Math.max(task.top, previous.top + 38)
+      }
+    })
+
+  return orderedItems.map((item, index) => {
+    const previous = orderedItems[index - 1]
+    const next = orderedItems[index + 1]
+    const connectsPrevious =
+      previous !== undefined &&
+      item.blockTop - (previous.blockTop + previous.blockHeight) <= CONNECTED_GAP_PX
+    const connectsNext =
+      next !== undefined && next.blockTop - (item.blockTop + item.blockHeight) <= CONNECTED_GAP_PX
+
+    return {
+      ...item,
+      connectsPrevious,
+      connectsNext
+    }
+  })
 }
 
 function buildCalendarConnectors(items: CalendarItem[]): CalendarConnector[] {
@@ -178,13 +234,15 @@ function buildCalendarConnectors(items: CalendarItem[]): CalendarConnector[] {
     const next = items[index + 1]
     const start = item.blockTop + item.blockHeight - 1
     const end = next.blockTop + 1
+    const hasGap = next.blockTop - (item.blockTop + item.blockHeight) > CONNECTED_GAP_PX
 
     return {
       id: `${item.id}-${next.id}`,
       top: Math.min(start, end),
       height: Math.max(2, Math.abs(end - start)),
       fromColor: item.color,
-      toColor: next.color
+      toColor: next.color,
+      hasGap
     }
   })
 }
@@ -195,19 +253,19 @@ function formatHour(totalMinutes: number): string {
   return `${hour12}:00`
 }
 
-function buildHourTicks(items: CalendarItem[]): HourTick[] {
+function buildHourTicks(items: CalendarItem[], visibleStartMinutes: number): HourTick[] {
   if (items.length === 0) return []
 
   const lastEnd =
-    VISIBLE_START_MINUTES +
+    visibleStartMinutes +
     Math.max(...items.map((item) => item.blockTop + item.blockHeight)) / PX_PER_MINUTE
-  const finalHour = Math.max(VISIBLE_START_MINUTES, Math.floor(lastEnd / 60) * 60)
+  const finalHour = Math.max(visibleStartMinutes, Math.floor(lastEnd / 60) * 60)
   const ticks: HourTick[] = []
 
-  for (let hour = VISIBLE_START_MINUTES; hour <= finalHour; hour += 60) {
+  for (let hour = visibleStartMinutes; hour <= finalHour; hour += 60) {
     ticks.push({
       label: formatHour(hour),
-      top: ((hour - VISIBLE_START_MINUTES) / 60) * 70
+      top: ((hour - visibleStartMinutes) / 60) * 70
     })
   }
 
@@ -217,12 +275,14 @@ function buildHourTicks(items: CalendarItem[]): HourTick[] {
 function Calendar(): React.JSX.Element {
   const [tasks, setTasks] = useState<Task[]>([])
   const [externalEvents, setExternalEvents] = useState<ExternalCalendarEvent[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [visibleDay, setVisibleDay] = useState(() => new Date())
 
   useEffect(() => {
     let cancelled = false
 
-    async function loadTasks(): Promise<void> {
+    async function loadTasks(showLoading = false): Promise<void> {
+      if (showLoading) setIsLoading(true)
       try {
         const [data, googleEvents] = await Promise.all([
           window.api.getTasks(),
@@ -241,35 +301,37 @@ function Calendar(): React.JSX.Element {
             }))
           )
           setExternalEvents(googleEvents)
+          setIsLoading(false)
         }
       } catch {
         if (!cancelled) {
           setTasks([])
           setExternalEvents([])
+          setIsLoading(false)
         }
       }
     }
 
     const onTasksChanged = (): void => {
-      void loadTasks()
+      void loadTasks(true)
     }
 
     const onWindowFocus = (): void => {
       setVisibleDay(new Date())
-      void loadTasks()
+      void loadTasks(true)
     }
 
     let midnightTimer: number
     const scheduleMidnightRefresh = (): number => {
       return window.setTimeout(() => {
         setVisibleDay(new Date())
-        void loadTasks()
+        void loadTasks(true)
         midnightTimer = scheduleMidnightRefresh()
       }, getMsUntilNextLocalDay())
     }
 
     midnightTimer = scheduleMidnightRefresh()
-    void loadTasks()
+    void loadTasks(true)
     window.addEventListener(TASKS_CHANGED_EVENT, onTasksChanged)
     window.addEventListener('focus', onWindowFocus)
 
@@ -281,12 +343,19 @@ function Calendar(): React.JSX.Element {
     }
   }, [])
 
-  const calendarItems = useMemo(
-    () => buildCalendarItems(tasks, externalEvents, visibleDay),
+  const visibleStartMinutes = useMemo(
+    () => getVisibleStartMinutes(tasks, externalEvents, visibleDay),
     [tasks, externalEvents, visibleDay]
   )
+  const calendarItems = useMemo(
+    () => buildCalendarItems(tasks, externalEvents, visibleDay, visibleStartMinutes),
+    [tasks, externalEvents, visibleDay, visibleStartMinutes]
+  )
   const calendarConnectors = useMemo(() => buildCalendarConnectors(calendarItems), [calendarItems])
-  const hourTicks = useMemo(() => buildHourTicks(calendarItems), [calendarItems])
+  const hourTicks = useMemo(
+    () => buildHourTicks(calendarItems, visibleStartMinutes),
+    [calendarItems, visibleStartMinutes]
+  )
   const calendarHeight = useMemo(() => {
     const bottom = calendarItems.reduce(
       (max, task) => Math.max(max, task.blockTop + task.blockHeight, task.top + 26),
@@ -298,12 +367,10 @@ function Calendar(): React.JSX.Element {
 
   async function toggleTask(id: string): Promise<void> {
     const current = tasks.find((task) => task.id === id)
-    if (!current) return
+    if (!current || current.completed) return
 
     try {
-      const updated = current.completed
-        ? await window.api.uncompleteTask(id)
-        : await window.api.completeTask(id)
+      const updated = await window.api.completeTask(id)
 
       setTasks((prev) =>
         prev.map((task) =>
@@ -333,7 +400,9 @@ function Calendar(): React.JSX.Element {
           {calendarConnectors.map((connector) => (
             <span
               key={connector.id}
-              className="calendar-view__connector"
+              className={`calendar-view__connector ${
+                connector.hasGap ? 'calendar-view__connector--gap' : ''
+              }`.trim()}
               style={
                 {
                   top: `${connector.top}px`,
@@ -347,7 +416,9 @@ function Calendar(): React.JSX.Element {
           {calendarItems.map((task) => (
             <span
               key={task.id}
-              className="calendar-view__time-block"
+              className={`calendar-view__time-block ${
+                task.connectsPrevious ? 'calendar-view__time-block--connected-prev' : ''
+              } ${task.connectsNext ? 'calendar-view__time-block--connected-next' : ''}`.trim()}
               style={
                 {
                   top: `${task.blockTop}px`,
@@ -369,7 +440,7 @@ function Calendar(): React.JSX.Element {
 
         <ul className="calendar-view__tasks">
           {calendarItems.length === 0 ? (
-            <li className="calendar-view__empty">No tasks yet!</li>
+            <li className="calendar-view__empty">{isLoading ? 'Loading...' : 'No tasks yet!'}</li>
           ) : null}
           {calendarItems.map((task) => (
             <li
@@ -385,45 +456,45 @@ function Calendar(): React.JSX.Element {
                 </span>
                 <span className="calendar-task__time">{task.durationMinutes} Minutes</span>
               </span>
-              {task.source === 'task' ? (
+              {task.source === 'task' && !task.completed ? (
                 <button
                   type="button"
                   className="calendar-task__checkbox"
                   onClick={() => void toggleTask(task.id)}
-                  aria-label={task.completed ? 'Mark incomplete' : 'Mark complete'}
+                  aria-label="Mark complete"
                 >
-                  {task.completed ? (
-                    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
-                      <circle
-                        cx="10"
-                        cy="10"
-                        r="9.25"
-                        fill="#C5EF00"
-                        stroke="#000000"
-                        strokeWidth="1.5"
-                      />
-                      <path
-                        d="M6 10.4 L8.6 13 L14 7.2"
-                        stroke="#000000"
-                        strokeWidth="1.8"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        fill="none"
-                      />
-                    </svg>
-                  ) : (
-                    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
-                      <circle
-                        cx="10"
-                        cy="10"
-                        r="9.25"
-                        fill="#FFF0CB"
-                        stroke="#000000"
-                        strokeWidth="1.5"
-                      />
-                    </svg>
-                  )}
+                  <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+                    <circle
+                      cx="10"
+                      cy="10"
+                      r="9.25"
+                      fill="#FFF0CB"
+                      stroke="#000000"
+                      strokeWidth="1.5"
+                    />
+                  </svg>
                 </button>
+              ) : task.source === 'task' && task.completed ? (
+                <span className="calendar-task__checkbox calendar-task__checkbox--locked">
+                  <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+                    <circle
+                      cx="10"
+                      cy="10"
+                      r="9.25"
+                      fill="#C5EF00"
+                      stroke="#000000"
+                      strokeWidth="1.5"
+                    />
+                    <path
+                      d="M6 10.4 L8.6 13 L14 7.2"
+                      stroke="#000000"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      fill="none"
+                    />
+                  </svg>
+                </span>
               ) : null}
             </li>
           ))}
